@@ -1,0 +1,12 @@
+[submodule "references/doa-release"]
+	path = references/doa-release
+	url = https://github.com/GAMMA-UMD/doa-release
+[submodule "references/Cross3D"]
+	path = references/Cross3D
+	url = https://github.com/DavidDiazGuerra/Cross3D
+[submodule "references/icodoa"]
+	path = references/icodoa
+	url = https://github.com/daviddiazguerra/icodoa
+[submodule "references/mbss_locate"]
+	path = references/mbss_locate
+	url = https://gitlab.inria.fr/bass-db/mbss_locate.git
