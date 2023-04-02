@@ -1,11 +1,14 @@
 use core::fmt::Debug;
+use itertools::Itertools;
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::Read;
 use std::iter;
-use std::ops::Add;
+use std::ops::{Add, Sub};
 
 use hound::{SampleFormat, WavReader};
-use itertools::Itertools;
-use nalgebra::{matrix, Const, DMatrix, Dyn, Matrix3xX};
+use nalgebra::{matrix, vector, Complex, Const, DMatrix, Dyn, Matrix3xX, Vector3};
+use ndarray::Array2;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer};
 use serde_with::{serde_as, FromInto};
@@ -13,36 +16,12 @@ use time::{Date, PrimitiveDateTime, Time};
 
 use crate::matlab::MBSS_locate_spec;
 
+type F = f64;
+type I = i64;
+type C = Complex<F>;
+type Position = Vector3<F>;
+
 mod matlab;
-
-#[derive(Deserialize, Default, Clone, Copy)]
-struct Position {
-    x: f64,
-    y: f64,
-    z: f64,
-}
-
-impl Add for Position {
-    type Output = Position;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Position {
-            x: self.x + rhs.x,
-            y: self.y + rhs.y,
-            z: self.z + rhs.z,
-        }
-    }
-}
-
-impl Debug for Position {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("")
-            .field(&self.x)
-            .field(&self.y)
-            .field(&self.z)
-            .finish()
-    }
-}
 
 #[derive(Deserialize, Debug)]
 struct PrimitiveDateTimeD {
@@ -117,8 +96,8 @@ struct ArrayPosition {
     #[serde_as(as = "FromInto<PrimitiveDateTimeD>")]
     #[serde(flatten)]
     time: PrimitiveDateTime,
-    #[serde(flatten)]
-    position: Position,
+    // #[serde(flatten)]
+    // position: Position,
     #[serde(flatten, deserialize_with = "deserialize_microphone_pos")]
     microphones: Vec<Position>,
 }
@@ -128,8 +107,8 @@ struct SoundSourcePosition {
     #[serde_as(as = "FromInto<PrimitiveDateTimeD>")]
     #[serde(flatten)]
     time: PrimitiveDateTime,
-    #[serde(flatten)]
-    position: Position,
+    // #[serde(flatten)]
+    // position: Position,
 }
 
 fn read_tsv<T: DeserializeOwned>(file: &[u8]) -> Vec<T> {
@@ -141,62 +120,91 @@ fn main() {
     let array_positions: Vec<ArrayPosition> = read_tsv(include_bytes!(
         "../references/LOCATA/dev/task1/recording1/benchmark2/position_array_benchmark2.txt"
     ));
-    // let sound_source_positions: Vec<SoundSourcePosition> = read_tsv(include_bytes!(
-    //     "../references/LOCATA/dev/task1/recording1/benchmark2/position_source_loudspeaker1.txt"
-    // ));
-    // assert_eq!(array_positions.len(), sound_source_positions.len());
-    // assert_eq!(array_positions[0].time, sound_source_positions[0].time);
 
-    // let mics = Matrix3xX::from_row_iterator(
-    //     array_positions[0].microphones.len(),
-    //     array_positions[0]
-    //         .microphones
-    //         .iter()
-    //         .map(|&p|p + array_positions[0].position)
-    //         .flat_map(|Position { x, y, z }| [x, y, z]),
-    // );
     #[rustfmt::skip]
     let mics = [
-        Position{ x:  0.0370, y:  0.0560, z: -0.0380 },
-        Position{ x: -0.0340, y:  0.0560, z:  0.0380 },
-        Position{ x: -0.0560, y:  0.0370, z: -0.0380 },
-        Position{ x: -0.0560, y: -0.0340, z:  0.0380 },
-        Position{ x: -0.0370, y: -0.0560, z: -0.0380 },
-        Position{ x:  0.0340, y: -0.0560, z:  0.0380 },
-        Position{ x:  0.0560, y: -0.0370, z: -0.0380 },
-        Position{ x:  0.0560, y:  0.0340, z:  0.0380 },
+        vector![  0.0370,  0.0560, -0.0380 ],
+        vector![ -0.0340,  0.0560,  0.0380 ],
+        vector![ -0.0560,  0.0370, -0.0380 ],
+        vector![ -0.0560, -0.0340,  0.0380 ],
+        vector![ -0.0370, -0.0560, -0.0380 ],
+        vector![  0.0340, -0.0560,  0.0380 ],
+        vector![  0.0560, -0.0370, -0.0380 ],
+        vector![  0.0560,  0.0340,  0.0380 ],
     ];
-    //  .transpose();
-    // let mics = Matrix3xX::from_iterator(8, mics.into_iter().copied());
 
-    // let source = Wave32::load(
-    //     "references/LOCATA/dev/task1/recording1/benchmark2/audio_source_loudspeaker1.wav",
-    // )
-    // .expect("Could not load source audio");
-    // assert_eq!(source.channels(), 1);
-
-    // let mut array = WavReader::open(
-    //     "references/LOCATA/dev/task1/recording1/benchmark2/audio_array_benchmark2.alt.wav",
-    // )
     let mut array = WavReader::open(
         "references/mbss_locate/v2.0/examples/example_1/wav files/male_female_mixture.wav",
     )
     .unwrap();
-    assert_eq!(array.spec().channels as usize, mics.ncols());
+    assert_eq!(array.spec().channels as usize, mics.len());
     assert_eq!(array.spec().sample_format, SampleFormat::Int);
 
     let duration = dbg!(array.duration()) as usize;
     // let duration = 100_000;
 
-    let x = DMatrix::from_row_iterator(
-        mics.ncols(),
-        duration,
-        array
-            .samples::<i32>()
-            .take(duration * mics.ncols())
-            .map(|v| (v.unwrap() as f64) / i32::MAX as f64),
+    // let x = DMatrix::from_row_iterator(
+    //     mics.ncols(),
+    //     duration,
+    //     array
+    //         .samples::<i32>()
+    //         .take(duration * mics.ncols())
+    //         .map(|v| (v.unwrap() as f64) / i32::MAX as f64),
+    // );
+    let array = Audio::from_file(
+        "references/mbss_locate/v2.0/examples/example_1/wav files/male_female_mixture.wav",
     );
+    assert_eq!(array.channels(), mics.len());
 
-    let test = MBSS_locate_spec(x, 1. / (array.spec().sample_rate as f64), mics, 2);
+    let test = MBSS_locate_spec(array, &mics, 2);
     println!("{test:?}");
+}
+
+pub struct Audio {
+    data: Array2<F>,
+    sample_rate: F,
+}
+
+impl Audio {
+    fn channels(&self) -> usize {
+        self.data.dim().0
+    }
+    fn samples(&self) -> usize {
+        self.data.dim().1
+    }
+
+    pub fn from_file(arg: &str) -> Self {
+        let mut array = File::open(arg).unwrap();
+        let (header, data) = wav::read(&mut array).unwrap();
+        let data = data.as_sixteen().unwrap();
+        Self {
+            sample_rate: header.sampling_rate as F,
+            data: Array2::from_shape_fn(
+                (
+                    header.channel_count as usize,
+                    data.len() / header.channel_count as usize,
+                ),
+                |(c, s)| data[c + s * header.channel_count as usize] as F / 2f64.powi(15),
+            ),
+        }
+    }
+}
+
+impl<R: Read> From<WavReader<R>> for Audio {
+    fn from(value: WavReader<R>) -> Self {
+        let spec = value.spec();
+        let channels = spec.channels.into();
+        let duration = value.duration();
+        let samples = value
+            .into_samples()
+            .map_ok(|v: i16| v as F / 2f64.powi(15))
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        Self {
+            sample_rate: spec.sample_rate as F,
+            data: Array2::from_shape_fn((channels, duration as usize), |(c, s)| {
+                samples[s * channels + c]
+            }),
+        }
+    }
 }
