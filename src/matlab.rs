@@ -185,7 +185,6 @@ pub fn MBSS_locate_spec(audio: Audio, mic_pos: &[Position], nsrc: usize) -> Vec<
     let normalizeSpecInst = false;
     let azimuth = az_bound.step_size(grid_res).collect_vec();
     let elevation = elevation_bound.step_size(grid_res).collect_vec();
-    println!("{:?}", (azimuth));
     // repeat thetas nPhis times
     let azimuth_grid = azimuth.repeat(elevation.len());
     // repeat each phi nThetas times
@@ -252,7 +251,6 @@ pub fn MBSS_locate_spec(audio: Audio, mic_pos: &[Position], nsrc: usize) -> Vec<
         );
     }
 
-    csv_dump(spec_inst.view(), "spec_inst");
     // %% Pooling
     let specGlobal = match pooling {
         Pooling::Max => spec_inst.map_axis(Axis(1), |a| a.iter().copied().fold(F::MIN, F::max)),
@@ -260,7 +258,6 @@ pub fn MBSS_locate_spec(audio: Audio, mic_pos: &[Position], nsrc: usize) -> Vec<
         // case 'sum'
         //     specGlobal = shiftdim(sum(specInst,2));
     };
-    csv_dump_1d(&specGlobal, "spec_global");
 
     // %% Peak finding
     MBSS_findPeaks2D(
@@ -288,11 +285,9 @@ fn MBSS_findPeaks2D(
 ) -> Vec<(F, F)> {
     // % Convert angular spectrum in 2D
     // (reshape(ppfSpec,iNbThetas,iNbPhis))';
-    csv_dump_1d(&ppfSpec, "ppfSpec");
     let ppfSpec2D = ppfSpec
         .into_shape((elevation.len(), azimuth.len()))
         .unwrap();
-    csv_dump(ppfSpec2D.view(), "ppfSpec2D");
 
     // % Estimate angular spectrum in theta and phi independently by taking
     // % the max in the corresponding direction
@@ -338,23 +333,18 @@ fn MBSS_findPeaks2D(
                     ])),
             )
         });
-        csv_dump(ppiPeaks.view(), "ppiPeaks.csv");
 
         // % number of local maxima
         let iNbLocalmaxima = ppiPeaks.sum() as usize;
-        dbg!(iNbLocalmaxima);
 
         // % local maxima with corrresponding values
         let ppfSpec2D_peaks = (&ppfSpec2D - min(ppfSpec2D)) * ppiPeaks; // % substract min value : avoid issues (when sorting peaks) if some peaks values are negatives
-        csv_dump(ppfSpec2D_peaks.view(), "ppfSpec2D_peaks");
 
         // % sort values of local maxima
         let pfSpec1D_peaks = ppfSpec2D_peaks
             .into_shape(azimuth.len() * elevation.len())
             .unwrap(); // reshape(ppfSpec2D_peaks',1,iNbPhis*iNbThetas);
-        csv_dump_1d(&pfSpec1D_peaks, "ppfSpec1D_peaks");
         let piIndexPeaks1D = sort_i_dec(pfSpec1D_peaks.view());
-        csv_dump_1d(&piIndexPeaks1D, "piIndexPeaks1D");
 
         let mut piEstSourcesIndex = vec![piIndexPeaks1D[0]]; //  % first source is the global maximum (first one in piSortedPeaksIndex1D)
         let mut index = 1; // search index in piSortedPeaksIndex1D
@@ -447,7 +437,6 @@ fn filter_index<'a, T>(
 // }
 //
 fn MBSS_stft_multi(x: ArrayView2<F>, wlen: usize) -> Array3<C> {
-    csv_dump(x, "x.csv");
     assert!(x.nrows() < x.ncols(), "the signals must be within rows.");
     assert!(wlen % 4 == 0, "the window length must be a multiple of 4.");
     // Truncate input signal to multitude of window length
@@ -575,18 +564,11 @@ fn GCC_PHAT_MULTI(
            // (shiftdim(sum(spec,1)))'
 
         let specSampledgrid = spec.sum_axis(Axis(0));
-        csv_dump(specSampledgrid.view(), "specSampledgrid");
-        csv_dump_1d(&alpha_sampled[i], "alpha_sampled[i]");
-        csv_dump_1d(
-            &alpha.index_axis(Axis(0), i),
-            "alpha.index_axis(Axis(0), i)",
-        );
         let interp = interp1q(
             &alpha_sampled[i],
             specSampledgrid.view(),
             alpha.index_axis(Axis(0), i),
         );
-        csv_dump(interp.view(), "interp");
         // Order 1 interpolation on the entire grid
         // interp1q(alphaSampled{i}', specSampledgrid, alpha(i,:)')
         spec_inst += &interp; // original
@@ -623,11 +605,9 @@ fn MBSS_preprocess(
         .iter()
         .map(|&(a, b)| mic_pos[a] - mic_pos[b])
         .collect_vec();
-    csv_dump_1d(&mic_dirs, "mic_dirs");
 
     // Microphone distance for each pair
     let mic_dists = mic_dirs.iter().map(Matrix::magnitude).collect_vec();
-    csv_dump_1d(&mic_dists, "mic_dists");
 
     // Convert all potential {theta,phi} on the sphere grid in cartesian coordinates
     let angle_to_coord = az_grid
@@ -635,14 +615,12 @@ fn MBSS_preprocess(
         .zip(el_grid.iter())
         .map(|(&az, &el)| vector![el.cos() * az.cos(), el.cos() * az.sin(), el.sin()])
         .collect_vec();
-    csv_dump_1d(&angle_to_coord, "angle_to_coord");
 
     let alpha = Array2::from_shape_fn((pair_ids.len(), az_grid.len()), |(mic_pair, direction)| {
         let mic_pair = mic_dirs[mic_pair];
         let direction = angle_to_coord[direction];
         mic_pair.angle(&direction)
     });
-    csv_dump(alpha.view().mapv(f64::to_degrees).view(), "alpha");
 
     // Compute 1D angles search grids and associated TDOA (Tau) search grids for each microphone pair
     // following search grid boundaries for each microphone pair is driven by
@@ -670,13 +648,6 @@ fn MBSS_preprocess(
                 .collect_vec(),
         );
     }
-    csv_dump_2d(
-        alpha_sampled
-            .iter()
-            .map(|r| r.iter().map(|v| v.to_degrees())),
-        "alpha_sampled",
-    );
-    csv_dump_2d(&tau_grid, "tau_grid");
     (pair_ids, mic_dists, alpha, alpha_sampled, tau_grid)
 }
 

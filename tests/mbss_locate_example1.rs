@@ -1,9 +1,11 @@
+use float_cmp::assert_approx_eq;
 use itertools::Itertools;
-use ssl::{Audio, MBSS_locate_spec};
-
 use nalgebra::vector;
+use ssl::{Audio, MBSS_locate_spec, F};
 
+#[test]
 fn main() {
+    debug_assert!(false, "run in release mode");
     #[rustfmt::skip]
     let mics = [
         vector![  0.0370,  0.0560, -0.0380 ],
@@ -25,5 +27,9 @@ fn main() {
         .into_iter()
         .map(|(az, el)| (az.to_degrees(), el.to_degrees()))
         .collect_vec();
-    println!("{test:?}");
+    assert_eq!(test.len(), 2);
+    assert_approx_eq!(F, test[0].0, 45., epsilon = 0.0001);
+    assert_approx_eq!(F, test[0].1, 45., epsilon = 0.0001);
+    assert_approx_eq!(F, test[1].0, 135., epsilon = 0.0001);
+    assert_approx_eq!(F, test[1].1, 0., epsilon = 0.0001);
 }

@@ -13,6 +13,7 @@ repository = "https://github.com/ModProg/ssl"
 
 [dependencies]
 csv = "1.2.0"
+float-cmp = "0.9.0"
 fundsp = "0.12.0"
 hound = "3.5.0"
 itertools = "0.10.5"
