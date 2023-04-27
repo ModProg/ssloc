@@ -1,7 +1,7 @@
 use float_cmp::assert_approx_eq;
 use itertools::Itertools;
 use nalgebra::vector;
-use ssl::{Audio, MBSS_locate_spec, F};
+use ssl::{Audio, MbssConfig, F};
 
 #[test]
 fn main() {
@@ -23,7 +23,9 @@ fn main() {
     );
     assert_eq!(array.channels(), mics.len());
 
-    let test = MBSS_locate_spec(array, &mics, 2)
+    let test = MbssConfig::default()
+        .create(mics)
+        .locate_spec(&array, 2)
         .into_iter()
         .map(|(az, el)| (az.to_degrees(), el.to_degrees()))
         .collect_vec();
