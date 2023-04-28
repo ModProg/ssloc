@@ -515,11 +515,13 @@ fn interp1q(
     let interpolated = query_points
         .iter()
         .map(|&q| {
+            // eprintln!("{q:?} in {sample_points:?}");
             let a = sample_points.partition_point(|&p| (p as F) <= q);
             // TODO I don't think we should need this
-            // if a == sample_points.len() {
-            //     return Array1::from_elem(sample_data.column(0).dim(), F::NAN);
-            // }
+            if a == sample_points.len() {
+                assert!((sample_points.last().unwrap() - q).abs() < 0.01);
+                return sample_data.column(a - 1).to_owned();
+            }
             // if a == 0 {
             //     return Array1::from_elem(sample_data.column(0).dim(), F::NAN);
             // }
