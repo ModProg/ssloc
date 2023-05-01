@@ -1,10 +1,11 @@
-use float_cmp::assert_approx_eq;
-use itertools::Itertools;
-use nalgebra::vector;
-use ssl::{Audio, MbssConfig, F};
-
+#[cfg(feature = "wav")]
 #[test]
 fn main() {
+    use float_cmp::assert_approx_eq;
+    use itertools::Itertools;
+    use nalgebra::vector;
+    use ssloc::{Audio, MbssConfig, F};
+
     debug_assert!(false, "run in release mode");
     #[rustfmt::skip]
     let mics = [

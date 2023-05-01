@@ -4,14 +4,16 @@
     clippy::cast_lossless,
     clippy::cast_precision_loss
 )]
-use std::fs::File;
-use std::io::Read;
+// TODO https://github.com/rust-ndarray/ndarray/pull/1279
+#![allow(clippy::reversed_empty_ranges)]
 
-use hound::WavReader;
-use itertools::Itertools;
 use nalgebra::{Complex, Vector3};
 use ndarray::Array2;
 
+#[cfg(feature = "realtime")]
+mod realtime;
+#[cfg(feature = "realtime")]
+pub use realtime::*;
 mod utils;
 
 pub type F = f64;
@@ -40,7 +42,9 @@ impl Audio {
         self.data.dim().1
     }
 
+    #[cfg(feature = "wav")]
     pub fn from_file(arg: &str) -> Self {
+        use std::fs::File;
         let mut array = File::open(arg).unwrap();
         let (header, data) = wav::read(&mut array).unwrap();
         let data = data.as_sixteen().unwrap();
@@ -49,16 +53,6 @@ impl Audio {
             header.channel_count as usize,
             header.sampling_rate as F, // , 2f64.powi(15)
         )
-        // Self {
-        //     sample_rate: header.sampling_rate as F,
-        //     data: Array2::from_shape_fn(
-        //         (
-        //             header.channel_count as usize,
-        //             data.len() / header.channel_count as usize,
-        //         ),
-        //         |(c, s)| data[c + s * header.channel_count as usize] as F, // / 2f64.powi(15),
-        //     ),
-        // }
     }
 
     pub fn from_interleaved<T: ToPrimitive>(
@@ -79,25 +73,6 @@ impl Audio {
         Self {
             data: Array2::default((0, 0)),
             sample_rate,
-        }
-    }
-}
-
-impl<R: Read> From<WavReader<R>> for Audio {
-    fn from(value: WavReader<R>) -> Self {
-        let spec = value.spec();
-        let channels = spec.channels.into();
-        let duration = value.duration();
-        let samples = value
-            .into_samples()
-            .map_ok(|v: i16| v as F / 2f64.powi(15))
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
-        Self {
-            sample_rate: spec.sample_rate as F,
-            data: Array2::from_shape_fn((channels, duration as usize), |(c, s)| {
-                samples[s * channels + c]
-            }),
         }
     }
 }

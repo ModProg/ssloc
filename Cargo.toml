@@ -1,5 +1,5 @@
 [package]
-name = "ssl"
+name = "ssloc"
 version = "0.1.0"
 edition = "2021"
 categories = []
@@ -7,27 +7,30 @@ description = ""
 keywords = []
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/ModProg/ssl"
+repository = "https://github.com/ModProg/ssloc"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+default = ["wav", "realtime", "bin"]
+wav = ["dep:wav"]
+realtime = ["alsa", "derive_more", "num", "serde_with"]
+bin = ["anyhow", "clap", "confique", "unidirs", "realtime"]
 
 [dependencies]
-alsa = "0.7.0"
-csv = "1.2.0"
-derive_builder = "0.12.0"
-derive_more = "0.99"
-float-cmp = "0.9.0"
-fundsp = "0.12.0"
-hound = "3.5.0"
+alsa = { version = "0.7.0", optional = true }
+anyhow = { version = "1.0.71", optional = true }
+clap = { version = "4.2.5", optional = true, features = ["derive"] }
+confique = { version = "0.2.3", optional = true, default-features = false, features = ["toml"] }
+derive_more = { version = "0.99.17", optional = true }
 itertools = "0.10.5"
 nalgebra = "0.32.2"
 ndarray = "0.15.6"
-# ndarray.path = "../../../Development/Rust/ndarray/"
+num = { version = "0.4.0", optional = true }
 realfft = "3.2.0"
-rustfft = "6.1.0"
 serde = { version = "1.0.152", features = ["derive"] }
-serde_json = "1.0.93"
-serde_with = "2.2.0"
-smart-default = "0.6.0"
-time = "0.3.19"
-wav = "1.0.0"
+serde_with = { version = "2.3.3", optional = true }
+smart-default = "0.7"
+unidirs = { version = "0.1.1", optional = true }
+wav = {version = "1", optional = true}
+
+[dev-dependencies]
+float-cmp = "0.9.0"
