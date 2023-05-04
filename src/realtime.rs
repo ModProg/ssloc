@@ -54,6 +54,22 @@ impl From<Format> for pcm::Format {
     }
 }
 
+impl PartialEq<str> for Format {
+    fn eq(&self, other: &str) -> bool {
+        matches!(
+            (other, self),
+            ("s8" | "S8", Format::S8)
+                | ("u8" | "U8", Format::U8)
+                | ("s16" | "S16", Format::S16)
+                | ("u16" | "U16", Format::U16)
+                | ("s32" | "S32", Format::S32)
+                | ("u32" | "U32", Format::U32)
+                | ("f32" | "F32", Format::F32)
+                | ("f64" | "F64", Format::F64)
+        )
+    }
+}
+
 impl Format {
     /// Returns the supported `Format`s for a device's [`HwParams`]
     pub fn supported<'a>(params: &'a HwParams) -> impl Iterator<Item = Format> + 'a {
