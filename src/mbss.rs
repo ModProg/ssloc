@@ -1,7 +1,8 @@
 #![allow(clippy::module_name_repetitions)]
 use std::f64::consts::PI;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::iter;
+use std::str::FromStr;
 
 use itertools::Itertools;
 use nalgebra::{vector, Complex, ComplexField, Matrix, Vector3};
@@ -45,6 +46,26 @@ pub enum Pooling {
     #[default]
     Max,
     Sum,
+}
+
+impl Display for Pooling {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Pooling::Max => write!(f, "max"),
+            Pooling::Sum => write!(f, "sum"),
+        }
+    }
+}
+impl FromStr for Pooling {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        Ok(match s.to_ascii_lowercase().as_str() {
+            "max" => Self::Max,
+            "sum" => Self::Sum,
+            e => return Err(format!("Unsupported pooling mode {e:?}")),
+        })
+    }
 }
 
 #[derive(SmartDefault, Clone, Debug, Copy, Deserialize, Serialize)]
