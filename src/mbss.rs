@@ -19,7 +19,7 @@ use crate::{Audio, Position};
 type F = f64;
 type C = Complex<F>;
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum AngularSpectrumMethod {
     #[default]
@@ -40,7 +40,7 @@ impl AngularSpectrumMethod {
     }
 }
 
-#[derive(Clone, Copy, Default, Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, Default, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Pooling {
     #[default]
@@ -68,7 +68,7 @@ impl FromStr for Pooling {
     }
 }
 
-#[derive(SmartDefault, Clone, Debug, Copy, Deserialize, Serialize)]
+#[derive(SmartDefault, Clone, Debug, Copy, Deserialize, Serialize, PartialEq)]
 #[serde(default)]
 pub struct MbssConfig {
     pub pooling: Pooling,
