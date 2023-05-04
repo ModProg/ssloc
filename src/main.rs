@@ -292,7 +292,7 @@ fn main() -> Result {
                 )?;
                 loop {
                     let sources = mbss.locate_spec(&recorder.record()?, config.max_sources);
-                    for (az, el) in sources {
+                    for (az, el, _) in sources {
                         if degrees {
                             print!("{:9.0}° {:9.0}°\t", az.to_degrees(), el.to_degrees())
                         } else {

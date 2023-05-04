@@ -28,7 +28,7 @@ fn main() {
         .create(mics)
         .locate_spec(&array, 2)
         .into_iter()
-        .map(|(az, el)| (az.to_degrees(), el.to_degrees()))
+        .map(|(az, el, _)| (az.to_degrees(), el.to_degrees()))
         .collect_vec();
     assert_eq!(test.len(), 2);
     assert_approx_eq!(F, test[0].0, 45., epsilon = 0.0001);

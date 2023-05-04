@@ -203,7 +203,7 @@ impl Mbss {
     }
 
     #[must_use]
-    pub fn locate_spec(&self, audio: &Audio, nsrc: usize) -> Vec<(F, F)> {
+    pub fn locate_spec(&self, audio: &Audio, nsrc: usize) -> Vec<(F, F, F)> {
         assert_eq!(
             self.mics.len(),
             audio.channels(),
@@ -301,7 +301,7 @@ impl Mbss {
     }
 
     /// This function search peaks in computed angular spectrum
-    fn find_peaks(&self, nsrc: usize, spec: ArrayView1<f64>) -> Vec<(F, F)> {
+    fn find_peaks(&self, nsrc: usize, spec: ArrayView1<f64>) -> Vec<(F, F, F)> {
         // % Convert angular spectrum in 2D
         // (reshape(ppfSpec,iNbThetas,iNbPhis))';
         let ppf_spec2_d = spec
@@ -320,6 +320,7 @@ impl Mbss {
             vec![(
                 self.azimuth[max_i(&spec_az_max)],
                 self.elevation[max_i(&spec_el_max)],
+                1.0,
             )]
         } else {
             //    % search all local maxima (local maximum : value higher than all neighborhood values)
@@ -404,7 +405,13 @@ impl Mbss {
 
             pi_est_sources_index
                 .into_iter()
-                .map(|i| (self.azimuth_grid[i], self.elevation_grid[i]))
+                .map(|i| {
+                    (
+                        self.azimuth_grid[i],
+                        self.elevation_grid[i],
+                        pf_spec1_d_peaks[i],
+                    )
+                })
                 .collect()
             // (
             //     filter_index(azimuth_grid.to_vec(), &piEstSourcesIndex),
