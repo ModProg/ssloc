@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::Audio;
 
-#[derive(Clone, Copy, Display, Deserialize, Serialize, Debug)]
+#[derive(Clone, Copy, Display, Deserialize, Serialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Format {
     S8,
