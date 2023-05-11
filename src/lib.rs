@@ -14,6 +14,7 @@ use ndarray::{Array2, ArrayView2};
 
 #[cfg(feature = "realtime")]
 mod realtime;
+use num::FromPrimitive;
 #[cfg(feature = "realtime")]
 pub use realtime::*;
 mod utils;
@@ -66,11 +67,34 @@ impl Audio {
         }
     }
 
-    pub fn empty(sample_rate: F) -> Self {
-        Self {
-            data: Array2::default((0, 0)),
-            sample_rate,
-        }
+    #[must_use]
+    pub fn to_interleaved<T: FromPrimitive>(&self) -> Vec<T> {
+        self.data
+            .iter()
+            .map(|&d| T::from_f64(d).expect("audio format can be converted"))
+            .collect()
+    }
+
+    #[cfg(feature = "wav")]
+    pub fn wav<T: FromPrimitive>(&self, conv: impl FnOnce(Vec<T>) -> wav::BitDepth) -> Vec<u8> {
+        use std::io::Cursor;
+
+        use wav::WAV_FORMAT_PCM;
+
+        let mut out = Vec::new();
+        #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+        wav::write(
+            wav::Header::new(
+                WAV_FORMAT_PCM,
+                self.channels() as u16,
+                self.sample_rate as u32,
+                16,
+            ),
+            &conv(self.to_interleaved()),
+            &mut Cursor::new(&mut out),
+        )
+        .expect("writing to buffer does not fail");
+        out
     }
 }
 
@@ -86,7 +110,11 @@ pub fn spec_to_image(spectrum: ArrayView2<F>) -> image::GrayImage {
         / u8::MAX as F;
     let mut img = GrayImage::new(spectrum.ncols() as u32, spectrum.nrows() as u32);
     for ((y, x), value) in spectrum.indexed_iter() {
-        img.put_pixel(x as u32, (spectrum.nrows() - 1 - y) as u32, Luma([(value / normalize) as u8]));
+        img.put_pixel(
+            x as u32,
+            (spectrum.nrows() - 1 - y) as u32,
+            Luma([(value / normalize) as u8]),
+        );
     }
     img
 }
