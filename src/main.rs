@@ -133,6 +133,10 @@ enum Command {
         #[arg(long, short)]
         #[cfg(feature = "image")]
         image: Option<PathBuf>,
+        #[arg(long, short)]
+        csv: Option<PathBuf>,
+        #[arg(long, short)]
+        unit_sphere: Option<PathBuf>,
     },
 }
 
@@ -276,6 +280,8 @@ fn main() -> Result {
             file,
             #[cfg(feature = "image")]
             image,
+            csv,
+            unit_sphere,
         } => {
             let mbss = config.mbss.unwrap_or_default().create(config.mics.clone());
             eprintln!(
@@ -302,6 +308,29 @@ fn main() -> Result {
                     ssloc::spec_to_image(spectrum.view())
                         .save_with_format(&image, image::ImageFormat::Png)
                         .with_context(|| format!("writing spectrum to {}", image.display()))?;
+                }
+                if let Some(mut csv) = csv {
+                    if csv.is_dir() {
+                        csv = csv.join("spec.csv");
+                    }
+                    fs::write(&csv, ssloc::spec_to_csv(spectrum.view()))
+                        .with_context(|| format!("writing spectrum to {}", csv.display()))?;
+                }
+                if let Some(mut unit_sphere) = unit_sphere {
+                    if unit_sphere.is_dir() {
+                        unit_sphere = unit_sphere.join("unit_sphere.csv");
+                    }
+                    fs::write(
+                        &unit_sphere,
+                        // TODO figure out if this is a reasonable value
+                        mbss.unit_sphere_spectrum(spectrum.view(), 5000.)
+                            .into_iter()
+                            .map(|(position, value)| {
+                                format!("{}, {}, {}, {value}\n", position.x, position.y, position.z)
+                            })
+                            .collect::<String>(),
+                    )
+                    .with_context(|| format!("writing spectrum to {}", unit_sphere.display()))?;
                 }
                 let sources = mbss.find_sources(spectrum.view(), config.max_sources);
                 for (az, el, _) in sources {

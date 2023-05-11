@@ -7,6 +7,7 @@
 // TODO https://github.com/rust-ndarray/ndarray/pull/1279
 #![allow(clippy::reversed_empty_ranges)]
 #![cfg(feature = "wav")]
+use std::fmt::Write;
 use std::path::Path;
 
 use nalgebra::{Complex, Vector3};
@@ -117,4 +118,18 @@ pub fn spec_to_image(spectrum: ArrayView2<F>) -> image::GrayImage {
         );
     }
     img
+}
+
+#[cfg(feature = "image")]
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#[must_use]
+pub fn spec_to_csv(spectrum: ArrayView2<F>) -> String {
+    let mut out = String::new();
+    for row in spectrum.rows() {
+        for col in row.iter() {
+            write!(out, "{col},").expect("string writing does not fail");
+        }
+        writeln!(out).expect("string writing does not fail");
+    }
+    out
 }

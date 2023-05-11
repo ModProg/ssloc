@@ -5,7 +5,7 @@ use std::iter;
 use std::str::FromStr;
 
 use itertools::Itertools;
-use nalgebra::{vector, Complex, ComplexField, Matrix, Vector3};
+use nalgebra::{vector, Complex, ComplexField, Matrix, UnitQuaternion, Vector3};
 use ndarray::{
     s, stack, Array1, Array2, Array3, ArrayBase, ArrayView1, ArrayView2, ArrayView3, Axis, Dim,
 };
@@ -307,7 +307,24 @@ impl Mbss {
     }
 
     #[must_use]
-    pub fn find_sources(&self, spec: ArrayView2<f64>, nsrc: usize) -> Vec<(f64, f64, f64)> {
+    pub fn unit_sphere_spectrum(&self, spec: ArrayView2<F>, threshold: F) -> Vec<(Position, F)> {
+        let mut out = Vec::new();
+        assert_eq!(spec.nrows(), self.elevation.len());
+        assert_eq!(spec.ncols(), self.azimuth.len());
+        let position = Position::new(1., 0., 0.);
+        for (row, &el) in spec.rows().into_iter().zip(self.elevation.iter()) {
+            for (&value, &az) in row.into_iter().zip(self.azimuth.iter()) {
+                if value > threshold {
+                    let rotation = UnitQuaternion::from_euler_angles(0., -el, az);
+                    out.push((rotation.transform_vector(&position), value));
+                }
+            }
+        }
+        out
+    }
+
+    #[must_use]
+    pub fn find_sources(&self, spec: ArrayView2<F>, nsrc: usize) -> Vec<(f64, f64, f64)> {
         self.find_peaks(nsrc, spec)
     }
 
