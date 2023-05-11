@@ -1,6 +1,6 @@
 #[cfg(feature = "wav")]
 #[test]
-fn main() {
+fn mbss_locate_example1() {
     use float_cmp::assert_approx_eq;
     use itertools::Itertools;
     use nalgebra::vector;

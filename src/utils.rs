@@ -49,21 +49,21 @@ pub fn min<'a>(iter: impl IntoIterator<Item = &'a F>) -> F {
 pub fn max<'a>(iter: impl IntoIterator<Item = &'a F>) -> F {
     iter.into_iter().copied().reduce(F::max).unwrap()
 }
-pub fn max_i<'a>(iter: impl IntoIterator<Item = &'a F>) -> usize {
-    let mut max = F::MIN;
-    let mut max_i = 0;
-    for (idx, &value) in iter.into_iter().enumerate() {
-        if value > max {
-            max_i = idx;
-            max = value;
-        }
-    }
-    #[allow(clippy::float_cmp)]
-    {
-        assert_ne!(max, F::MIN, "Expect to find a non F::MIN element");
-    }
-    max_i
-}
+// pub fn max_i<'a>(iter: impl IntoIterator<Item = &'a F>) -> usize {
+//     let mut max = F::MIN;
+//     let mut max_i = 0;
+//     for (idx, &value) in iter.into_iter().enumerate() {
+//         if value > max {
+//             max_i = idx;
+//             max = value;
+//         }
+//     }
+//     #[allow(clippy::float_cmp)]
+//     {
+//         assert_ne!(max, F::MIN, "Expect to find a non F::MIN element");
+//     }
+//     max_i
+// }
 
 pub fn sort_i_dec<
     I: Index<usize, Output = F> + IntoIterator<IntoIter = II> + Copy,

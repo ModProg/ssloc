@@ -16,7 +16,7 @@ use itertools::Itertools;
 use num::{Num, NumCast, ToPrimitive};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, FromInto};
-use ssloc::{for_format, AudioRecorder, Format, MbssConfig, F};
+use ssloc::{for_format, Audio, AudioRecorder, Format, MbssConfig, F};
 use unidirs::{Directories, UnifiedDirs, Utf8PathBuf};
 
 type Result<T = (), E = anyhow::Error> = std::result::Result<T, E>;
@@ -128,6 +128,11 @@ enum Command {
         /// Print the angles in degrees
         #[arg(long, short)]
         degrees: bool,
+        #[arg(long, short)]
+        file: Option<PathBuf>,
+        #[arg(long, short)]
+        #[cfg(feature = "image")]
+        image: Option<PathBuf>,
     },
 }
 
@@ -266,8 +271,13 @@ fn main() -> Result {
                 println!("Created config at {path}");
             }
         }
-        Command::PrintSsl { degrees } => {
-            let mbss = MbssConfig::default().create(config.mics.clone());
+        Command::PrintSsl {
+            degrees,
+            file,
+            #[cfg(feature = "image")]
+            image,
+        } => {
+            let mbss = config.mbss.unwrap_or_default().create(config.mics.clone());
             eprintln!(
                 "Array zentroid: {:?}",
                 Position::from(mbss.array_centroid())
@@ -282,6 +292,27 @@ fn main() -> Result {
                 "{}",
                 format!("{:>10} {:>10}\t", "azimuth", "elevation").repeat(config.max_sources)
             );
+            if let Some(file) = file {
+                let spectrum = mbss.analyze_spectrum(&Audio::from_file(file));
+                #[cfg(feature = "image")]
+                if let Some(mut image) = image {
+                    if image.is_dir() {
+                        image = image.join("spec.png");
+                    }
+                    ssloc::spec_to_image(spectrum.view())
+                        .save_with_format(&image, image::ImageFormat::Png)
+                        .with_context(|| format!("writing spectrum to {}", image.display()))?;
+                }
+                let sources = mbss.find_sources(spectrum.view(), config.max_sources);
+                for (az, el, _) in sources {
+                    if degrees {
+                        print!("{:9.0}° {:9.0}°\t", az.to_degrees(), el.to_degrees())
+                    } else {
+                        print!("{az:10.7} {el:10.7}\t")
+                    }
+                }
+                return Ok(());
+            };
             for_format!(config.format, {
                 let mut recorder = AudioRecorder::<FORMAT>::new(
                     config.alsa_name,

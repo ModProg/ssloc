@@ -13,11 +13,16 @@ use realfft::RealFftPlanner;
 use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;
 
-use crate::utils::{max, max_i, min, sort_i_dec, Step};
+use crate::utils::{max, min, sort_i_dec, Step};
 use crate::{Audio, Position};
 
 type F = f64;
 type C = Complex<F>;
+
+pub struct Output {
+    pub sources: Vec<(F, F)>,
+    pub powers: Vec<(F, F, F)>,
+}
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -224,7 +229,7 @@ impl Mbss {
     }
 
     #[must_use]
-    pub fn locate_spec(&self, audio: &Audio, nsrc: usize) -> Vec<(F, F, F)> {
+    pub fn analyze_spectrum(&self, audio: &Audio) -> Array2<F> {
         assert_eq!(
             self.mics.len(),
             audio.channels(),
@@ -267,18 +272,7 @@ impl Mbss {
             .collect_vec();
 
         let spec_inst = match self.spectrum_method {
-            AngularSpectrumMethod::GccPhat => self.gcc_phat_multi(
-                // &pairs,
-                // &distances,
-                // alpha.view(),
-                // &alpha_sampled,
-                // &azimuth,
-                // &elevation,
-                // &tau_grid,
-                // c,
-                x_ft.view(),
-                &f,
-            ),
+            AngularSpectrumMethod::GccPhat => self.gcc_phat_multi(x_ft.view(), &f),
             other => todo!("{other:?}"),
         };
         // %% Normalize instantaneous local angular spectra if requested
@@ -308,9 +302,18 @@ impl Mbss {
         //     nsrc,
         //     min_angle: self.min_angle,
         // }
-        self.find_peaks(nsrc, spec.view())
+        spec.into_shape((self.n_elevations(), self.n_azimuth()))
+            .unwrap()
+    }
 
-        // %% Peak finding
+    #[must_use]
+    pub fn find_sources(&self, spec: ArrayView2<f64>, nsrc: usize) -> Vec<(f64, f64, f64)> {
+        self.find_peaks(nsrc, spec)
+    }
+
+    #[must_use]
+    pub fn locate_spec(&self, audio: &Audio, nsrc: usize) -> Vec<(F, F, F)> {
+        self.find_sources(self.analyze_spectrum(audio).view(), nsrc)
     }
 
     fn n_elevations(&self) -> usize {
@@ -322,124 +325,117 @@ impl Mbss {
     }
 
     /// This function search peaks in computed angular spectrum
-    fn find_peaks(&self, nsrc: usize, spec: ArrayView1<f64>) -> Vec<(F, F, F)> {
-        // % Convert angular spectrum in 2D
-        // (reshape(ppfSpec,iNbThetas,iNbPhis))';
-        let ppf_spec2_d = spec
-            .view()
-            .into_shape((self.n_elevations(), self.n_azimuth()))
+    fn find_peaks(&self, nsrc: usize, spec: ArrayView2<f64>) -> Vec<(F, F, F)> {
+        //    % search all local maxima (local maximum : value higher than all neighborhood values)
+        //    % some alternative implementations using matlab image processing toolbox are explained here :
+        //    % http://stackoverflow.com/questions/22218037/how-to-find-local-maxima-in-image)
+        //
+        // % Current implementation uses no specific toolbox. Explanations can be found with following link :
+        //    % http://stackoverflow.com/questions/5042594/comparing-matrix-element-with-its-neighbours-without-using-loop-in-matlab
+        //    % All values of flat peaks are detected as peaks with this implementation :
+        //  ones(size(ppfSpec2D,1)+2,size(ppfSpec2D,2)+2) * -Inf;
+        let mut ppf_padpeak_filter =
+            Array2::from_elem(spec.raw_dim() + Dim((2, 2)), F::NEG_INFINITY);
+        ppf_padpeak_filter
+            .slice_mut(s![1isize..-1, 1isize..-1])
+            .assign(&spec);
+
+        let ((el, az), m) = spec
+            .indexed_iter()
+            .max_by(|(_, a), (_, b)| a.total_cmp(b))
             .unwrap();
+        println!(
+            "{:?}",
+            (
+                self.azimuth[az].to_degrees(),
+                self.elevation[el].to_degrees(),
+                m
+            )
+        );
 
-        // % Estimate angular spectrum in theta and phi independently by taking
-        // % the max in the corresponding direction
-        let spec_az_max = ppf_spec2_d.map_axis(Axis(0), max);
-        let spec_el_max = ppf_spec2_d.map_axis(Axis(1), max);
+        // % Find peaks : compare values with their neighbours
+        // ppiPeaks = ppfPadpeakFilter(2:end-1,2:end-1) >= ppfPadpeakFilter(1:end-2,2:end-1) & ... % top
+        //            ppfPadpeakFilter(2:end-1,2:end-1) >= ppfPadpeakFilter(3:end,  2:end-1) & ... % bottom
+        //            ppfPadpeakFilter(2:end-1,2:end-1) >= ppfPadpeakFilter(2:end-1,1:end-2) & ... % right
+        //            ppfPadpeakFilter(2:end-1,2:end-1) >= ppfPadpeakFilter(2:end-1,3:end)   & ... % left
+        //            ppfPadpeakFilter(2:end-1,2:end-1) >= ppfPadpeakFilter(1:end-2,1:end-2) & ... % top/left
+        //            ppfPadpeakFilter(2:end-1,2:end-1) >= ppfPadpeakFilter(1:end-2,3:end)   & ... % top/right
+        //            ppfPadpeakFilter(2:end-1,2:end-1) >= ppfPadpeakFilter(3:end,  1:end-2) & ... % bottom/left
+        //            ppfPadpeakFilter(2:end-1,2:end-1) >= ppfPadpeakFilter(3:end,  3:end);        % bottom/right
+        let ppi_peaks = Array2::from_shape_fn(spec.dim(), |(t, p)| {
+            F::from(
+                spec[(t, p)]
+                    >= max(spec.slice(s![
+                        t.saturating_sub(1)..(t + 2).min(spec.dim().0),
+                        p.saturating_sub(1)..(p + 2).min(spec.dim().1)
+                    ])),
+            )
+        });
 
-        if nsrc == 1 {
-            // TODO verify this does what it should
-            // % Find the maximum peak both in theta and phi direction
-            vec![(
-                self.azimuth[max_i(&spec_az_max)],
-                self.elevation[max_i(&spec_el_max)],
-                1.0,
-            )]
-        } else {
-            //    % search all local maxima (local maximum : value higher than all neighborhood values)
-            //    % some alternative implementations using matlab image processing toolbox are explained here :
-            //    % http://stackoverflow.com/questions/22218037/how-to-find-local-maxima-in-image)
-            //
-            // % Current implementation uses no specific toolbox. Explanations can be found with following link :
-            //    % http://stackoverflow.com/questions/5042594/comparing-matrix-element-with-its-neighbours-without-using-loop-in-matlab
-            //    % All values of flat peaks are detected as peaks with this implementation :
-            //  ones(size(ppfSpec2D,1)+2,size(ppfSpec2D,2)+2) * -Inf;
-            let mut ppf_padpeak_filter =
-                Array2::from_elem(ppf_spec2_d.raw_dim() + Dim((2, 2)), F::NEG_INFINITY);
-            ppf_padpeak_filter
-                .slice_mut(s![1isize..-1, 1isize..-1])
-                .assign(&ppf_spec2_d);
+        // % number of local maxima
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let nlocal_maximas = ppi_peaks.sum() as usize;
 
-            // % Find peaks : compare values with their neighbours
-            // ppiPeaks = ppfPadpeakFilter(2:end-1,2:end-1) >= ppfPadpeakFilter(1:end-2,2:end-1) & ... % top
-            //            ppfPadpeakFilter(2:end-1,2:end-1) >= ppfPadpeakFilter(3:end,  2:end-1) & ... % bottom
-            //            ppfPadpeakFilter(2:end-1,2:end-1) >= ppfPadpeakFilter(2:end-1,1:end-2) & ... % right
-            //            ppfPadpeakFilter(2:end-1,2:end-1) >= ppfPadpeakFilter(2:end-1,3:end)   & ... % left
-            //            ppfPadpeakFilter(2:end-1,2:end-1) >= ppfPadpeakFilter(1:end-2,1:end-2) & ... % top/left
-            //            ppfPadpeakFilter(2:end-1,2:end-1) >= ppfPadpeakFilter(1:end-2,3:end)   & ... % top/right
-            //            ppfPadpeakFilter(2:end-1,2:end-1) >= ppfPadpeakFilter(3:end,  1:end-2) & ... % bottom/left
-            //            ppfPadpeakFilter(2:end-1,2:end-1) >= ppfPadpeakFilter(3:end,  3:end);        % bottom/right
-            let ppi_peaks = Array2::from_shape_fn(ppf_spec2_d.dim(), |(t, p)| {
-                F::from(
-                    ppf_spec2_d[(t, p)]
-                        >= max(ppf_spec2_d.slice(s![
-                            t.saturating_sub(1)..(t + 2).min(ppf_spec2_d.dim().0),
-                            p.saturating_sub(1)..(p + 2).min(ppf_spec2_d.dim().1)
-                        ])),
-                )
-            });
+        // % local maxima with corrresponding values
+        let ppf_spec2_d_peaks = (&spec - min(spec)) * ppi_peaks; // % substract min value : avoid issues (when sorting peaks) if some peaks values are negatives
 
-            // % number of local maxima
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            let nlocal_maximas = ppi_peaks.sum() as usize;
+        // % sort values of local maxima
+        let pf_spec1_d_peaks = ppf_spec2_d_peaks
+            .into_shape(self.n_azimuth() * self.n_elevations())
+            .unwrap(); // reshape(ppfSpec2D_peaks',1,iNbPhis*iNbThetas);
+        let pi_index_peaks1_d = sort_i_dec(pf_spec1_d_peaks.view());
 
-            // % local maxima with corrresponding values
-            let ppf_spec2_d_peaks = (&ppf_spec2_d - min(ppf_spec2_d)) * ppi_peaks; // % substract min value : avoid issues (when sorting peaks) if some peaks values are negatives
+        let mut pi_est_sources_index = vec![pi_index_peaks1_d[0]]; //  % first source is the global maximum (first one in piSortedPeaksIndex1D)
+        let mut index = 1; // search index in piSortedPeaksIndex1D
+        let mut nb_sources_found = 1; // set to one as global maximum is already selected as source
 
-            // % sort values of local maxima
-            let pf_spec1_d_peaks = ppf_spec2_d_peaks
-                .into_shape(self.n_azimuth() * self.n_elevations())
-                .unwrap(); // reshape(ppfSpec2D_peaks',1,iNbPhis*iNbThetas);
-            let pi_index_peaks1_d = sort_i_dec(pf_spec1_d_peaks.view());
+        // %Filter the list of peaks found with respect to minAngle parameter
+        while nb_sources_found < nsrc && index <= nlocal_maximas {
+            let mut angle_allowed = true;
+            // % verify that current direction is allowed with respect to minAngle and sources already selected
+            for &est_source in &pi_est_sources_index {
+                // % distance calculated using curvilinear abscissa (degrees) - ref. : http://geodesie.ign.fr/contenu/fichiers/Distance_longitude_latitude.pdf
+                let el_est = self.elevation_grid[est_source];
+                let el_peak = self.elevation_grid[pi_index_peaks1_d[index]];
+                let az_est = self.azimuth_grid[est_source];
+                let az_peak = self.azimuth_grid[pi_index_peaks1_d[index]];
+                let dist = (el_est.sin() * el_peak.sin()
+                    + el_est.cos() * el_peak.cos() * (az_peak - az_est).cos())
+                .acos();
 
-            let mut pi_est_sources_index = vec![pi_index_peaks1_d[0]]; //  % first source is the global maximum (first one in piSortedPeaksIndex1D)
-            let mut index = 1; // search index in piSortedPeaksIndex1D
-            let mut nb_sources_found = 1; // set to one as global maximum is already selected as source
-
-            // %Filter the list of peaks found with respect to minAngle parameter
-            while nb_sources_found < nsrc && index <= nlocal_maximas {
-                let mut angle_allowed = true;
-                // % verify that current direction is allowed with respect to minAngle and sources already selected
-                for &est_source in &pi_est_sources_index {
-                    // % distance calculated using curvilinear abscissa (degrees) - ref. : http://geodesie.ign.fr/contenu/fichiers/Distance_longitude_latitude.pdf
-                    let el_est = self.elevation_grid[est_source];
-                    let el_peak = self.elevation_grid[pi_index_peaks1_d[index]];
-                    let az_est = self.azimuth_grid[est_source];
-                    let az_peak = self.azimuth_grid[pi_index_peaks1_d[index]];
-                    let dist = (el_est.sin() * el_peak.sin()
-                        + el_est.cos() * el_peak.cos() * (az_peak - az_est).cos())
-                    .acos();
-
-                    if dist < self.min_angle as F {
-                        angle_allowed = false;
-                        // panic!("I DONT WANT TO BREAK so soon {index}");
-                        break;
-                    }
+                if dist < self.min_angle as F {
+                    angle_allowed = false;
+                    // panic!("I DONT WANT TO BREAK so soon {index}");
+                    break;
                 }
-
-                // % store new source
-                if angle_allowed {
-                    pi_est_sources_index.push(pi_index_peaks1_d[index]);
-                    nb_sources_found += 1;
-                }
-
-                index += 1;
             }
 
-            pi_est_sources_index
-                .into_iter()
-                .map(|i| {
-                    (
-                        self.azimuth_grid[i],
-                        self.elevation_grid[i],
-                        pf_spec1_d_peaks[i],
-                    )
-                })
-                .collect()
-            // (
-            //     filter_index(azimuth_grid.to_vec(), &piEstSourcesIndex),
-            //     filter_index(elevation_grid.to_vec(), &piEstSourcesIndex),
-            // )
+            // % store new source
+            if angle_allowed {
+                pi_est_sources_index.push(pi_index_peaks1_d[index]);
+                nb_sources_found += 1;
+            }
+
+            index += 1;
         }
+
+        pi_est_sources_index
+            .into_iter()
+            .map(|i| {
+                (
+                    self.azimuth_grid[i],
+                    self.elevation_grid[i],
+                    pf_spec1_d_peaks[i],
+                )
+            })
+            .collect()
+        // (
+        //     filter_index(azimuth_grid.to_vec(), &piEstSourcesIndex),
+        //     filter_index(elevation_grid.to_vec(), &piEstSourcesIndex),
+        // )
     }
+
+    // }
 
     fn gcc_phat_multi(
         &self,

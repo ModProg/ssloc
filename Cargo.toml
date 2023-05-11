@@ -10,7 +10,7 @@ readme = "README.md"
 repository = "https://github.com/ModProg/ssloc"
 
 [features]
-default = ["wav", "realtime", "bin"]
+default = ["wav", "realtime", "bin", "image"]
 wav = ["dep:wav"]
 realtime = ["alsa", "derive_more", "num", "serde_with"]
 bin = ["anyhow", "clap", "confique", "unidirs", "realtime"]
@@ -21,6 +21,7 @@ anyhow = { version = "1.0.71", optional = true }
 clap = { version = "4.2.5", optional = true, features = ["derive"] }
 confique = { version = "0.2.3", optional = true, default-features = false, features = ["toml"] }
 derive_more = { version = "0.99.17", optional = true }
+image = { version = "0.24.6", optional = true, default-features = false, features = ["png"] }
 itertools = "0.10.5"
 nalgebra = "0.32.2"
 ndarray = "0.15.6"
