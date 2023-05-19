@@ -138,7 +138,11 @@ pub fn spec_to_csv(spectrum: ArrayView2<F>) -> String {
 /// microphone array.
 #[must_use]
 pub fn angles_to_unit_vec(az: F, el: F) -> Position {
-    const POSITION: Position = Position::new(1., 0., 0.);
-    let rotation = UnitQuaternion::from_euler_angles(0., -el, az);
-    rotation.transform_vector(&POSITION)
+    angles_to_quaternion(az, el).transform_vector(&Position::new(1., 0., 0.))
+}
+
+/// Converts angles azimuth and elevation to the matching quaternion
+#[must_use]
+pub fn angles_to_quaternion(az: F, el: F) -> UnitQuaternion<F> {
+    UnitQuaternion::from_euler_angles(0., -el, az)
 }
