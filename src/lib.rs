@@ -10,7 +10,7 @@
 use std::fmt::Write;
 use std::path::Path;
 
-use nalgebra::{Complex, Vector3};
+use nalgebra::{Complex, UnitQuaternion, Vector3};
 use ndarray::{Array2, ArrayView2};
 
 #[cfg(feature = "realtime")]
@@ -132,4 +132,13 @@ pub fn spec_to_csv(spectrum: ArrayView2<F>) -> String {
         writeln!(out).expect("string writing does not fail");
     }
     out
+}
+
+/// Converts angles azimuth and elevation to the respective position on a unitsphere around the
+/// microphone array.
+#[must_use]
+pub fn angles_to_unit_vec(az: F, el: F) -> Position {
+    const POSITION: Position = Position::new(1., 0., 0.);
+    let rotation = UnitQuaternion::from_euler_angles(0., -el, az);
+    rotation.transform_vector(&POSITION)
 }
