@@ -49,8 +49,12 @@ impl Audio {
     #[cfg(feature = "wav")]
     pub fn from_file(arg: impl AsRef<Path>) -> Self {
         use std::fs::File;
-        let mut array = File::open(arg).unwrap();
-        let (header, data) = wav::read(&mut array).unwrap();
+        Self::from_wav(File::open(arg).unwrap())
+    }
+
+    #[cfg(feature = "wav")]
+    pub fn from_wav<R: std::io::Read + std::io::Seek>(mut data: R) -> Self {
+        let (header, data) = wav::read(&mut data).unwrap();
         let data = data.as_sixteen().unwrap();
         Self::from_interleaved(
             data,
