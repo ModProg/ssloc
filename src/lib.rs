@@ -16,9 +16,9 @@ use std::fmt::Write;
 use std::path::Path;
 
 use nalgebra::{Complex, UnitQuaternion, Vector3};
-use ndarray::Array2;
 #[cfg(feature = "image")]
 use ndarray::ArrayView2;
+use ndarray::{Array2, Axis};
 use num::FromPrimitive;
 
 #[cfg(feature = "realtime")]
@@ -46,6 +46,14 @@ impl Audio {
     #[must_use]
     pub fn channels(&self) -> usize {
         self.data.dim().0
+    }
+
+    pub fn retain_channels(&mut self, mut filter: impl FnMut(usize) -> bool) {
+        for channel in (0..self.channels()).rev() {
+            if !filter(channel) {
+                self.data.remove_index(Axis(0), channel);
+            }
+        }
     }
 
     #[must_use]
