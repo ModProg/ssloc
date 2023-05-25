@@ -44,7 +44,7 @@ jobs:
       - name: Build
         run: cargo hack build --feature-powerset ${{ matrix.cargo_flags }}
       - name: Test
-        run: cargo hack test --feature-powerset --all-targets --no-fail-fast --workspace
+        run: cargo hack test --feature-powerset --all-targets --no-fail-fast --workspace --release
       - name: Doc Test
         run: cargo test --all-features --doc --no-fail-fast --workspace
       - name: Build Docs
