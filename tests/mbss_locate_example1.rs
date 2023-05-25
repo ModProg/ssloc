@@ -19,9 +19,7 @@ fn mbss_locate_example1() {
         vector![  0.0560,  0.0340,  0.0380 ],
     ];
 
-    let array = Audio::from_file(
-        "references/mbss_locate/v2.0/examples/example_1/wav files/male_female_mixture.wav",
-    );
+    let array = Audio::from_file("tests/input/male_female_mixture.wav");
     assert_eq!(array.channels(), mics.len());
 
     let test = MbssConfig::default()
