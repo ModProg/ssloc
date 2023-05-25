@@ -25,6 +25,7 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
+      - run: sudo apt-get install libasound2-dev -y
       - uses: actions/checkout@v2
       - uses: actions/cache@v3
         with:

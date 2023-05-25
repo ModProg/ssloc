@@ -22,6 +22,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}/proc_macro_utils
     runs-on: ubuntu-latest
     steps:
+      - run: sudo apt-get install libasound2-dev -y
       - uses: actions/checkout@v2
       - uses: actions/cache@v3
         with:
