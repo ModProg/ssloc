@@ -13,8 +13,8 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - windows-latest
-          - macos-latest
+          - ubuntu-20.04
+            # TODO test non realtime on other platforms
         rust:
           - 1.65.0 # ubuntu 20.04
           - stable
