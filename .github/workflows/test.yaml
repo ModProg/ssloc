@@ -13,7 +13,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - ubuntu-20.04
+            # TODO ubuntu-20.04 https://github.com/bruxisma/setup-cargo-hack/issues/41
             # TODO test non realtime on other platforms
         rust:
           - 1.65.0 # ubuntu 20.04
