@@ -290,7 +290,7 @@ impl Mbss {
         // %% Pooling
         let spec = match self.pooling {
             Pooling::Max => spec_inst.map_axis(Axis(1), |a| a.iter().copied().fold(F::MIN, F::max)),
-            Pooling::Sum => spec_inst.sum_axis(Axis(2)),
+            Pooling::Sum => spec_inst.sum_axis(Axis(1)),
         };
 
         // State {
