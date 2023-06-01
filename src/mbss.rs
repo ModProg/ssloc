@@ -97,6 +97,14 @@ pub struct MbssConfig {
     pub normalize_spectra: bool,
 }
 
+/// Calculate the distance between two angles using using curvilinear abscissa 
+///
+/// ref. : <http://geodesie.ign.fr/contenu/fichiers/Distance_longitude_latitude.pdf>
+#[must_use]
+pub fn angular_distance(az1: F, el1: F, az2: F, el2: F) -> F {
+    (el1.sin() * el2.sin() + el1.cos() * el2.cos() * (az2 - az1).cos()).acos()
+}
+
 impl MbssConfig {
     pub fn create(self, mics: impl IntoIterator<Item = impl Into<Position>>) -> Mbss {
         let MbssConfig {
@@ -414,13 +422,10 @@ impl Mbss {
                 let el_peak = self.elevation_grid[pi_index_peaks1_d[index]];
                 let az_est = self.azimuth_grid[est_source];
                 let az_peak = self.azimuth_grid[pi_index_peaks1_d[index]];
-                let dist = (el_est.sin() * el_peak.sin()
-                    + el_est.cos() * el_peak.cos() * (az_peak - az_est).cos())
-                .acos();
+                let dist = angular_distance(az_est, el_est, az_peak, el_peak);
 
                 if dist < self.min_angle as F {
                     angle_allowed = false;
-                    // panic!("I DONT WANT TO BREAK so soon {index}");
                     break;
                 }
             }
