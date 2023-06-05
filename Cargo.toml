@@ -13,22 +13,36 @@ documentation = "https://docs.rs/ssloc"
 [lib]
 
 [[bin]]
-name="ssloc"
+name = "ssloc"
 required-features = ["bin"]
 
 [features]
+# default = ["bin"]
 default = ["wav", "realtime", "image"]
-wav = ["dep:wav"]
+wav = ["dep:hound"]
 realtime = ["alsa", "derive_more"]
-bin = ["anyhow", "clap", "confique", "unidirs", "realtime", "serde_with", "image", "wav"]
+bin = [
+    "anyhow",
+    "clap",
+    "confique",
+    "unidirs",
+    "realtime",
+    "serde_with",
+    "image",
+    "wav",
+]
 
 [dependencies]
 alsa = { version = "0.7.0", optional = true }
 anyhow = { version = "1.0.71", optional = true }
 clap = { version = "4.2.5", optional = true, features = ["derive"] }
-confique = { version = "0.2.3", optional = true, default-features = false, features = ["toml"] }
+confique = { version = "0.2.3", optional = true, default-features = false, features = [
+    "toml",
+] }
 derive_more = { version = "0.99.17", optional = true }
-image = { version = "0.24.6", optional = true, default-features = false, features = ["png"] }
+image = { version = "0.24.6", optional = true, default-features = false, features = [
+    "png",
+] }
 itertools = "0.10.5"
 nalgebra = "0.32.2"
 ndarray = "0.15.6"
@@ -38,7 +52,7 @@ serde = { version = "1.0.152", features = ["derive"] }
 serde_with = { version = "3", optional = true }
 smart-default = "0.7"
 unidirs = { version = "0.1.1", optional = true }
-wav = {version = "1", optional = true}
+hound = { version = "3.5", optional = true }
 
 [dev-dependencies]
 float-cmp = "0.9"

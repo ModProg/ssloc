@@ -97,7 +97,7 @@ pub struct MbssConfig {
     pub normalize_spectra: bool,
 }
 
-/// Calculate the distance between two angles using using curvilinear abscissa 
+/// Calculate the distance between two angles using using curvilinear abscissa
 ///
 /// ref. : <http://geodesie.ign.fr/contenu/fichiers/Distance_longitude_latitude.pdf>
 #[must_use]

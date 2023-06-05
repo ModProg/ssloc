@@ -4,7 +4,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!-- ## [Unreleased] -->
+## [Unreleased]
+### Added
+- `Audio::sample_rate()`
+- `delay_and_sum()` sound source separation.
+
+### Changed
+- **BREAKING CHANGE** `Audio::wav()` now takes `hound::SampleFormat` and `bits_per_sample: u16`.
+- replaced `wav` with `hound`.
+
+### CLI
+- added `sss` subcommand supporting `delay-and-sum` algorithm for sound source separation.
+
 ## [0.2.0] - 2023-06-01
 ### Added
 - `mbss::angular_distance`

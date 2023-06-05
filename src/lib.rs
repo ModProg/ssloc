@@ -35,6 +35,8 @@ pub type Position = Vector3<F>;
 pub use mbss::{Mbss, MbssConfig};
 use realfft::num_traits::ToPrimitive;
 pub mod mbss;
+mod sss;
+pub use sss::delay_and_sum;
 
 #[must_use]
 pub struct Audio {
@@ -61,6 +63,11 @@ impl Audio {
         self.data.dim().1
     }
 
+    #[must_use]
+    pub fn sample_rate(&self) -> F {
+        self.sample_rate
+    }
+
     #[cfg(feature = "wav")]
     pub fn from_file(arg: impl AsRef<Path>) -> Self {
         use std::fs::File;
@@ -68,14 +75,39 @@ impl Audio {
     }
 
     #[cfg(feature = "wav")]
-    pub fn from_wav<R: std::io::Read + std::io::Seek>(mut data: R) -> Self {
-        let (header, data) = wav::read(&mut data).unwrap();
-        let data = data.as_sixteen().unwrap();
-        Self::from_interleaved(
-            data,
-            header.channel_count as usize,
-            header.sampling_rate as F,
-        )
+    pub fn from_wav<R: std::io::Read>(data: R) -> Self {
+        use itertools::Itertools;
+
+        let reader = hound::WavReader::new(data).unwrap();
+        let spec = reader.spec();
+        match spec.sample_format {
+            hound::SampleFormat::Float => {
+                let data = reader.into_samples();
+                Self::from_interleaved(
+                    &data.collect::<Result<Vec<f32>, _>>().unwrap(),
+                    spec.channels as usize,
+                    spec.sample_rate as F,
+                )
+            }
+            hound::SampleFormat::Int => {
+                // https://web.archive.org/web/20230605122301/https://gist.github.com/endolith/e8597a58bcd11a6462f33fa8eb75c43d
+                let normalize: Box<dyn Fn(i32) -> F> = match spec.bits_per_sample {
+                    u @ ..=8 => Box::new(move |s: i32| {
+                        (s - 2i32.pow(u as u32 - 1)) as F / (2f64.powi(u as i32 - 1) - 1.)
+                    }),
+                    i => Box::new(move |s: i32| s as F / (2f64.powi(i as i32) - 1.)),
+                };
+                let data = reader.into_samples();
+                Self::from_interleaved(
+                    &data
+                        .map_ok(normalize)
+                        .collect::<Result<Vec<F>, _>>()
+                        .unwrap(),
+                    spec.channels as usize,
+                    spec.sample_rate as F,
+                )
+            }
+        }
     }
 
     pub fn from_interleaved<T: ToPrimitive>(data: &[T], channels: usize, sample_rate: F) -> Self {
@@ -95,25 +127,36 @@ impl Audio {
 
     #[cfg(feature = "wav")]
     #[must_use]
-    pub fn wav<T: FromPrimitive>(&self, conv: impl FnOnce(Vec<T>) -> wav::BitDepth) -> Vec<u8> {
+    pub fn wav(&self, sample_format: hound::SampleFormat, bits_per_sample: u16) -> Vec<u8> {
         use std::io::Cursor;
 
-        use wav::WAV_FORMAT_PCM;
+        use itertools::Itertools;
+
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let spec = hound::WavSpec {
+            channels: self.channels().try_into().unwrap(),
+            sample_rate: self.sample_rate as u32,
+            bits_per_sample,
+            sample_format,
+        };
 
         let mut out = Vec::new();
-        #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
-        wav::write(
-            wav::Header::new(
-                WAV_FORMAT_PCM,
-                self.channels() as u16,
-                self.sample_rate as u32,
-                16,
-            ),
-            &conv(self.to_interleaved().collect()),
-            &mut Cursor::new(&mut out),
-        )
-        .expect("writing to buffer does not fail");
+        let mut writer = hound::WavWriter::new(Cursor::new(&mut out), spec).unwrap();
+
+        match sample_format {
+            hound::SampleFormat::Float => self
+                .to_interleaved::<f32>()
+                .map(|sample| writer.write_sample(sample))
+                .try_collect()
+                .unwrap(),
+            hound::SampleFormat::Int => todo!(),
+        }
+        writer.finalize().unwrap();
         out
+    }
+
+    fn get(&self, mic: usize, sample: usize) -> Option<F> {
+        self.data.get((mic, sample)).copied()
     }
 }
 

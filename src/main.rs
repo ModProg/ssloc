@@ -1,3 +1,4 @@
+use std::f64::consts::PI;
 use std::fmt::Debug;
 use std::path::PathBuf;
 use std::{fs, iter};
@@ -12,6 +13,7 @@ use confique::Config as _;
 use derive_more::{
     Add, AddAssign, AsMut, AsRef, Deref, DerefMut, From, Into, Mul, MulAssign, Sub, Sum,
 };
+use hound::SampleFormat;
 use itertools::Itertools;
 use num::{Num, NumCast, ToPrimitive};
 use serde::{Deserialize, Serialize};
@@ -103,7 +105,7 @@ struct Clap {
     #[clap(subcommand)]
     subcommand: Command,
     /// Use a custom config
-    #[arg(long, short)]
+    #[arg(long, short, global = true)]
     config: Option<PathBuf>,
 }
 
@@ -133,10 +135,26 @@ enum Command {
         #[arg(long, short)]
         #[cfg(feature = "image")]
         image: Option<PathBuf>,
-        #[arg(long, short)]
+        #[arg(long)]
         csv: Option<PathBuf>,
         #[arg(long, short)]
         unit_sphere: Option<PathBuf>,
+    },
+    /// Does sound source seperation
+    Sss {
+        #[clap(subcommand)]
+        method: SssMethod,
+        #[arg(long, short, allow_negative_numbers = true)]
+        azimuth: F,
+        #[arg(long, short, allow_negative_numbers = true)]
+        elevation: F,
+        /// Use degrees for the angles
+        #[arg(long, short)]
+        degrees: bool,
+        #[arg(long, short)]
+        input: PathBuf,
+        #[arg(long, short)]
+        output: PathBuf,
     },
 }
 
@@ -155,6 +173,11 @@ enum ConfigCommand {
         #[arg(long, short)]
         system: bool,
     },
+}
+
+#[derive(Subcommand)]
+enum SssMethod {
+    DelayAndSum,
 }
 
 #[derive(confique::Config, Debug)]
@@ -362,6 +385,31 @@ fn main() -> Result {
                     println!()
                 }
             });
+        }
+        Command::Sss {
+            method,
+            mut azimuth,
+            mut elevation,
+            degrees,
+            input,
+            output,
+        } => {
+            let audio = Audio::from_file(input);
+            if azimuth > 2. * PI || elevation > 2. * PI || degrees {
+                azimuth = azimuth.to_radians();
+                elevation = elevation.to_radians();
+            };
+            let data = match method {
+                SssMethod::DelayAndSum => {
+                    ssloc::sss::delay_and_sum(azimuth, elevation, &audio, config.mics, 343.0)
+                        .collect_vec()
+                }
+            };
+            fs::write(
+                &output,
+                Audio::from_interleaved(&data, 1, audio.sample_rate()).wav(SampleFormat::Float, 32),
+            )
+            .with_context(|| format!("Could not write audio to {}", output.display()))?;
         }
     }
     Ok(())
