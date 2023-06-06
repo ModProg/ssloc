@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
 - `Audio::sample_rate()`
-- `delay_and_sum()` sound source separation.
+- `DelayAndSum` sound source separation.
 
 ### Changed
 - **BREAKING CHANGE** `Audio::wav()` now takes `hound::SampleFormat` and `bits_per_sample: u16`.

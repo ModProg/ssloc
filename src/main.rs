@@ -18,7 +18,7 @@ use itertools::Itertools;
 use num::{Num, NumCast, ToPrimitive};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, FromInto};
-use ssloc::{for_format, Audio, AudioRecorder, Format, MbssConfig, F};
+use ssloc::{for_format, Audio, AudioRecorder, DelayAndSum, Format, MbssConfig, F};
 use unidirs::{Directories, UnifiedDirs, Utf8PathBuf};
 
 type Result<T = (), E = anyhow::Error> = std::result::Result<T, E>;
@@ -177,7 +177,10 @@ enum ConfigCommand {
 
 #[derive(Subcommand)]
 enum SssMethod {
-    DelayAndSum,
+    DelayAndSum {
+        #[arg(long, short, default_value = "11")]
+        filter: usize,
+    },
 }
 
 #[derive(confique::Config, Debug)]
@@ -400,8 +403,14 @@ fn main() -> Result {
                 elevation = elevation.to_radians();
             };
             let data = match method {
-                SssMethod::DelayAndSum => {
-                    ssloc::sss::delay_and_sum(azimuth, elevation, &audio, config.mics, 343.0)
+                SssMethod::DelayAndSum { filter } => {
+                    let config = DelayAndSum {
+                        filter: Some(filter),
+                        mics: config.mics.into_iter().map_into().collect_vec(),
+                        ..Default::default()
+                    };
+                    config
+                        .delay_and_sum(azimuth, elevation, &audio)
                         .collect_vec()
                 }
             };

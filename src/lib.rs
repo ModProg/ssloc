@@ -36,7 +36,7 @@ pub use mbss::{Mbss, MbssConfig};
 use realfft::num_traits::ToPrimitive;
 pub mod mbss;
 mod sss;
-pub use sss::delay_and_sum;
+pub use sss::DelayAndSum;
 
 #[must_use]
 pub struct Audio {
@@ -92,7 +92,7 @@ impl Audio {
             hound::SampleFormat::Int => {
                 // https://web.archive.org/web/20230605122301/https://gist.github.com/endolith/e8597a58bcd11a6462f33fa8eb75c43d
                 let normalize: Box<dyn Fn(i32) -> F> = match spec.bits_per_sample {
-                    u @ ..=8 => Box::new(move |s: i32| {
+                    u @ 0..=8 => Box::new(move |s: i32| {
                         (s - 2i32.pow(u as u32 - 1)) as F / (2f64.powi(u as i32 - 1) - 1.)
                     }),
                     i => Box::new(move |s: i32| s as F / (2f64.powi(i as i32) - 1.)),
