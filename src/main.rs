@@ -416,7 +416,7 @@ fn main() -> Result {
             };
             fs::write(
                 &output,
-                Audio::from_interleaved(&data, 1, audio.sample_rate()).wav(SampleFormat::Float, 32),
+                Audio::from_interleaved(audio.sample_rate(), 1, data).wav(SampleFormat::Float, 32),
             )
             .with_context(|| format!("Could not write audio to {}", output.display()))?;
         }
