@@ -8,9 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `Audio::sample_rate()`
 - `DelayAndSum` sound source separation.
+- `Audio::wav_data()`
 
 ### Changed
-- **BREAKING CHANGE** `Audio::wav()` now takes `hound::SampleFormat` and `bits_per_sample: u16`.
+- **BREAKING CHANGE** `Audio::wav()` now takes `WavFormat` and `bits_per_sample: u16`.
+- **BREAKING CHANGE** `Audio::from_interleaved()` now takes `impl IntoIterator<Item = impl Into<f64>>` and changed order of inputs.
 - replaced `wav` with `hound`.
 
 ### CLI

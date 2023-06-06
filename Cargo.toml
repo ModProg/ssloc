@@ -53,6 +53,7 @@ serde_with = { version = "3", optional = true }
 smart-default = "0.7"
 unidirs = { version = "0.1.1", optional = true }
 hound = { version = "3.5", optional = true }
+forr = "0.1.1"
 
 [dev-dependencies]
 float-cmp = "0.9"

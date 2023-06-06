@@ -12,9 +12,11 @@
 //! the comming weeks.
 #[cfg(feature = "image")]
 use std::fmt::Write;
+use std::iter;
 #[cfg(feature = "wav")]
 use std::path::Path;
 
+use itertools::Itertools;
 use nalgebra::{Complex, UnitQuaternion, Vector3};
 #[cfg(feature = "image")]
 use ndarray::ArrayView2;
@@ -36,12 +38,13 @@ pub use mbss::{Mbss, MbssConfig};
 use realfft::num_traits::ToPrimitive;
 pub mod mbss;
 mod sss;
+pub use hound::SampleFormat as WavFormat;
 pub use sss::DelayAndSum;
 
 #[must_use]
 pub struct Audio {
-    data: Array2<F>,
     sample_rate: F,
+    data: Array2<F>,
 }
 
 impl Audio {
@@ -76,17 +79,15 @@ impl Audio {
 
     #[cfg(feature = "wav")]
     pub fn from_wav<R: std::io::Read>(data: R) -> Self {
-        use itertools::Itertools;
-
         let reader = hound::WavReader::new(data).unwrap();
         let spec = reader.spec();
         match spec.sample_format {
             hound::SampleFormat::Float => {
                 let data = reader.into_samples();
                 Self::from_interleaved(
-                    &data.collect::<Result<Vec<f32>, _>>().unwrap(),
-                    spec.channels as usize,
                     spec.sample_rate as F,
+                    spec.channels as usize,
+                    data.collect::<Result<Vec<f32>, _>>().unwrap(),
                 )
             }
             hound::SampleFormat::Int => {
@@ -99,18 +100,22 @@ impl Audio {
                 };
                 let data = reader.into_samples();
                 Self::from_interleaved(
-                    &data
-                        .map_ok(normalize)
+                    spec.sample_rate as F,
+                    spec.channels as usize,
+                    data.map_ok(normalize)
                         .collect::<Result<Vec<F>, _>>()
                         .unwrap(),
-                    spec.channels as usize,
-                    spec.sample_rate as F,
                 )
             }
         }
     }
 
-    pub fn from_interleaved<T: ToPrimitive>(data: &[T], channels: usize, sample_rate: F) -> Self {
+    pub fn from_interleaved(
+        sample_rate: F,
+        channels: usize,
+        data: impl IntoIterator<Item = impl Into<F>>,
+    ) -> Self {
+        let data = data.into_iter().map_into().collect_vec();
         Self {
             sample_rate,
             data: Array2::from_shape_fn((channels, data.len() / channels), |(c, s)| {
@@ -119,18 +124,59 @@ impl Audio {
         }
     }
 
+    pub fn from_channels(
+        sample_rate: F,
+        channels: impl IntoIterator<Item = impl IntoIterator<Item = impl Into<F>>>,
+    ) -> Self {
+        let mut channels = channels
+            .into_iter()
+            .map(IntoIterator::into_iter)
+            .collect_vec();
+        let mut channel = channels.len() - 1;
+        Self::from_interleaved(
+            sample_rate,
+            channels.len(),
+            iter::from_fn(|| {
+                channel = (channel + 1) % channels.len();
+                channels[channel].next()
+            }),
+        )
+    }
+
     pub fn to_interleaved<T: FromPrimitive>(&self) -> impl Iterator<Item = T> + '_ {
         self.data
             .iter()
             .map(|&d| T::from_f64(d).expect("audio format can be converted"))
     }
 
+    /// Produces wave data without header
     #[cfg(feature = "wav")]
     #[must_use]
-    pub fn wav(&self, sample_format: hound::SampleFormat, bits_per_sample: u16) -> Vec<u8> {
+    pub fn wav_data(&self, sample_format: WavFormat, bits_per_sample: u16) -> Vec<u8> {
         use std::io::Cursor;
 
-        use itertools::Itertools;
+        use hound::Sample;
+
+        let mut out = Vec::new();
+        let writer = &mut Cursor::new(&mut out);
+
+        match sample_format {
+            hound::SampleFormat::Float => {
+                for sample in self.to_interleaved::<f32>() {
+                    sample
+                        .write_padded(writer, bits_per_sample, (bits_per_sample + 7) / 8)
+                        .unwrap();
+                }
+            }
+            hound::SampleFormat::Int => todo!(),
+        }
+        out
+    }
+
+    #[cfg(feature = "wav")]
+    #[must_use]
+    pub fn wav(&self, sample_format: WavFormat, bits_per_sample: u16) -> Vec<u8> {
+        use std::io::Cursor;
 
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let spec = hound::WavSpec {

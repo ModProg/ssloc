@@ -4,10 +4,11 @@ use std::str::FromStr;
 use alsa::pcm::{self, Access, HwParams, IoFormat};
 use alsa::{Direction, ValueOr, PCM};
 use derive_more::Display;
+use forr::forr;
 use num::{Num, ToPrimitive};
 use serde::{Deserialize, Serialize};
 
-use crate::Audio;
+use crate::{Audio, F};
 
 #[derive(Clone, Copy, Display, Deserialize, Serialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -96,7 +97,36 @@ pub struct AudioRecorder<T> {
     // audio: Audio,
 }
 
-impl<T: Copy + IoFormat + Num + ToPrimitive> AudioRecorder<T> {
+pub trait Normalize {
+    fn normalize(self) -> F;
+}
+
+impl Normalize for f32 {
+    fn normalize(self) -> F {
+        self.into()
+    }
+}
+
+impl Normalize for F {
+    fn normalize(self) -> F {
+        self
+    }
+}
+
+forr! { $signed:ty, $unsigned:ty in [i8, u8, i16, u16, i32, u32] $*
+    impl Normalize for $signed {
+        fn normalize(self) -> F {
+            self as F / (Self::MAX as F - 1.)
+        }
+    }
+    impl Normalize for $unsigned {
+        fn normalize(self) -> F {
+            (self as F - $signed::MAX as F) / ($signed::MAX as F - 1.)
+        }
+    }
+}
+
+impl<T: Copy + IoFormat + Num + ToPrimitive + Normalize> AudioRecorder<T> {
     #[allow(clippy::missing_errors_doc)]
     pub fn new(
         name: impl AsRef<str>,
@@ -137,9 +167,9 @@ impl<T: Copy + IoFormat + Num + ToPrimitive> AudioRecorder<T> {
             self.buffer.len() / self.channels
         );
         Ok(Audio::from_interleaved(
-            &self.buffer,
-            self.channels,
             self.rate.into(),
+            self.channels,
+            self.buffer.iter().copied().map(Normalize::normalize),
         ))
     }
 }
@@ -174,14 +204,6 @@ macro_rules! for_format {
             }
             Format::F32 => {
                 type FORMAT = f32;
-                $expr
-            }
-            Format::F32 => {
-                type FORMAT = f32;
-                $expr
-            }
-            Format::F64 => {
-                type FORMAT = f64;
                 $expr
             }
             Format::F64 => {
