@@ -38,6 +38,7 @@ pub use mbss::{Mbss, MbssConfig};
 use realfft::num_traits::ToPrimitive;
 pub mod mbss;
 mod sss;
+#[cfg(feature = "wav")]
 pub use hound::SampleFormat as WavFormat;
 pub use sss::DelayAndSum;
 
