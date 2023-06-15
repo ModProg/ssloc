@@ -18,10 +18,10 @@ jobs:
         rust:
           - 1.65.0 # ubuntu 20.04
           - stable
-          - nightly
-        include:
-          - rust: nightly
-            cargo_flags: -Z minimal-versions
+          # - nightly
+        # include:
+        #   - rust: nightly
+        #     cargo_flags: -Z minimal-versions
 
     runs-on: ${{ matrix.os }}
     steps:

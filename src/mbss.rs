@@ -602,23 +602,25 @@ fn interp1q(
     smth
 }
 
-// // PHAT_SPEC Computes the GCC-PHAT spectrum as defined in
-// // C. Knapp, G. Carter, "The generalized cross-correlation method for
-// // estimation of time delay", IEEE Transactions on Acoustics, Speech and
-// // Signal Processing, 24(4):320â327, 1976.
-// //
-// // spec = phat_spec(X, f, tauGrid)
-// //
-// // Inputs:
-// // X: nbin x nFrames x 2 matrix containing the STFT coefficients of the input
-// //     signal in all time-frequency bins
-// // f: nbin x 1 vector containing the center frequency of each frequency bin
-// //     in Hz
-// // tauGrid: 1 x ngrid vector of possible TDOAs in seconds
-// //
-// // Output:
-// // spec: nbin x nFrames x ngrid array of angular spectrum values
-// //
+// PHAT_SPEC Computes the GCC-PHAT spectrum as defined in
+// C. Knapp, G. Carter, "The generalized cross-correlation method for
+// estimation of time delay", IEEE Transactions on Acoustics, Speech and
+// Signal Processing, 24(4):320â327, 1976.
+//
+// spec = phat_spec(X, f, tauGrid)
+//
+// Inputs:
+// X: nbin x nFrames x 2 matrix containing the STFT coefficients of the input
+//     signal in all time-frequency bins
+// f: nbin x 1 vector containing the center frequency of each frequency bin
+//     in Hz
+// tauGrid: 1 x ngrid vector of possible TDOAs in seconds
+//
+// Output:
+// spec: nbin x nFrames x ngrid array of angular spectrum values
+//
+// This calculates
+// [i] = (X1 * X2.conj()) / | (X1 * X2.conj()) e^( tau * -2 * i * pi  * f)
 fn phat_spec(x_ft: ArrayView3<C>, f: &[F], tau_grid: &[F]) -> Array3<f64> {
     let x_ft1 = x_ft.index_axis(Axis(2), 0);
     let x_ft2 = x_ft.index_axis(Axis(2), 1);
