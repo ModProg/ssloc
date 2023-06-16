@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;
 
 use crate::utils::{max, min, sort_i_dec, Step};
-use crate::{Audio, Position};
+use crate::{Audio, Direction, Position};
 
 type F = f64;
 type C = Complex<F>;
@@ -101,8 +101,12 @@ pub struct MbssConfig {
 ///
 /// ref. : <http://geodesie.ign.fr/contenu/fichiers/Distance_longitude_latitude.pdf>
 #[must_use]
-pub fn angular_distance(az1: F, el1: F, az2: F, el2: F) -> F {
-    (el1.sin() * el2.sin() + el1.cos() * el2.cos() * (az2 - az1).cos()).acos()
+pub fn angular_distance(a: impl Into<Direction>, b: impl Into<Direction>) -> F {
+    let a = a.into();
+    let b = b.into();
+    (a.elevation.sin() * b.elevation.sin()
+        + a.elevation.cos() * b.elevation.cos() * (b.elevation - a.elevation).cos())
+    .acos()
 }
 
 impl MbssConfig {
@@ -315,14 +319,14 @@ impl Mbss {
     }
 
     #[must_use]
-    pub fn unit_sphere_spectrum(&self, spec: ArrayView2<F>, threshold: F) -> Vec<(Position, F)> {
+    pub fn spectrum(&self, spec: ArrayView2<F>, threshold: F) -> Vec<(Direction, F)> {
         let mut out = Vec::new();
         assert_eq!(spec.nrows(), self.elevation.len());
         assert_eq!(spec.ncols(), self.azimuth.len());
         for (row, &el) in spec.rows().into_iter().zip(self.elevation.iter()) {
             for (&value, &az) in row.into_iter().zip(self.azimuth.iter()) {
                 if value > threshold {
-                    out.push((crate::angles_to_unit_vec(az, el), value));
+                    out.push((Direction::new(az, el), value));
                 }
             }
         }
@@ -330,12 +334,12 @@ impl Mbss {
     }
 
     #[must_use]
-    pub fn find_sources(&self, spec: ArrayView2<F>, nsrc: usize) -> Vec<(f64, f64, f64)> {
+    pub fn find_sources(&self, spec: ArrayView2<F>, nsrc: usize) -> Vec<(Direction, f64)> {
         self.find_peaks(nsrc, spec)
     }
 
     #[must_use]
-    pub fn locate_spec(&self, audio: &Audio, nsrc: usize) -> Vec<(F, F, F)> {
+    pub fn locate_spec(&self, audio: &Audio, nsrc: usize) -> Vec<(Direction, F)> {
         self.find_sources(self.analyze_spectrum(audio).view(), nsrc)
     }
 
@@ -348,7 +352,7 @@ impl Mbss {
     }
 
     /// This function search peaks in computed angular spectrum
-    fn find_peaks(&self, nsrc: usize, spec: ArrayView2<f64>) -> Vec<(F, F, F)> {
+    fn find_peaks(&self, nsrc: usize, spec: ArrayView2<f64>) -> Vec<(Direction, F)> {
         //    % search all local maxima (local maximum : value higher than all neighborhood values)
         //    % some alternative implementations using matlab image processing toolbox are explained here :
         //    % http://stackoverflow.com/questions/22218037/how-to-find-local-maxima-in-image)
@@ -422,7 +426,7 @@ impl Mbss {
                 let el_peak = self.elevation_grid[pi_index_peaks1_d[index]];
                 let az_est = self.azimuth_grid[est_source];
                 let az_peak = self.azimuth_grid[pi_index_peaks1_d[index]];
-                let dist = angular_distance(az_est, el_est, az_peak, el_peak);
+                let dist = angular_distance((az_est, el_est), (az_peak, el_peak));
 
                 if dist < self.min_angle as F {
                     angle_allowed = false;
@@ -443,8 +447,7 @@ impl Mbss {
             .into_iter()
             .map(|i| {
                 (
-                    self.azimuth_grid[i],
-                    self.elevation_grid[i],
+                    Direction::new(self.azimuth_grid[i], self.elevation_grid[i]),
                     pf_spec1_d_peaks[i],
                 )
             })

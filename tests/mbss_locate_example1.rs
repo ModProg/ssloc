@@ -33,7 +33,7 @@ fn mbss_locate_example1() {
             .locate_spec(&array, 2)
             .into_iter()
             .map(|v| dbg!(v))
-            .map(|(az, el, _)| (az.to_degrees(), el.to_degrees()))
+            .map(|(dir, _)| (dir.azimuth.to_degrees(), dir.elevation.to_degrees()))
             .collect_vec();
         assert_eq!(test.len(), 2);
         assert!(

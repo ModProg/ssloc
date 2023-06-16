@@ -17,8 +17,8 @@ name = "ssloc"
 required-features = ["bin"]
 
 [features]
-# default = ["bin"]
-default = ["wav", "realtime", "image"]
+default = ["bin"]
+# default = ["wav", "realtime", "image"]
 wav = ["dep:hound"]
 realtime = ["alsa", "derive_more"]
 bin = [

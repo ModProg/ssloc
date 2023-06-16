@@ -5,7 +5,7 @@ use std::{fs, iter};
 
 use alsa::device_name::{Hint, HintIter};
 use alsa::pcm::{Access, HwParams, IoFormat, PCM};
-use alsa::{Direction, Error, ValueOr};
+use alsa::{Error, ValueOr};
 use anyhow::Context;
 use clap::{Parser, Subcommand};
 use confique::toml::{template, FormatOptions};
@@ -18,7 +18,7 @@ use itertools::Itertools;
 use num::{Num, NumCast, ToPrimitive};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, FromInto};
-use ssloc::{for_format, Audio, AudioRecorder, DelayAndSum, Format, MbssConfig, F};
+use ssloc::{for_format, Audio, AudioRecorder, DelayAndSum, Direction, Format, MbssConfig, F};
 use unidirs::{Directories, UnifiedDirs, Utf8PathBuf};
 
 type Result<T = (), E = anyhow::Error> = std::result::Result<T, E>;
@@ -54,7 +54,7 @@ impl Debug for Position {
 }
 
 fn start_capture(device: &str, channels: usize, format: Format, rate: u32) -> Result<PCM, Error> {
-    let pcm = PCM::new(device, Direction::Capture, false)?;
+    let pcm = PCM::new(device, alsa::Direction::Capture, false)?;
     {
         let hwp = HwParams::any(&pcm)?;
         hwp.set_channels(channels as u32)?;
@@ -232,15 +232,15 @@ fn main() -> Result {
             } in HintIter::new_str(None, "pcm")?.chain(iter::once(Hint {
                 name: Some("default".into()),
                 desc: Some("System Default".into()),
-                direction: Some(Direction::Capture),
+                direction: Some(alsa::Direction::Capture),
             })) {
-                if matches!(direction, Some(Direction::Capture)) {
+                if matches!(direction, Some(alsa::Direction::Capture)) {
                     let desc = desc.as_deref().unwrap_or_default().replace('\n', " ");
                     if let Some(name) = name {
                         println!("{:-<16}", "");
                         println!("{desc}:");
                         println!("    Name: {name:?}");
-                        match PCM::new(name, Direction::Capture, false) {
+                        match PCM::new(name, alsa::Direction::Capture, false) {
                             Ok(pcm) => match HwParams::any(&pcm) {
                                 Ok(params) => {
                                     if let Ok(channels) = params.get_channels() {
@@ -349,9 +349,10 @@ fn main() -> Result {
                     fs::write(
                         &unit_sphere,
                         // TODO figure out if this is a reasonable value
-                        mbss.unit_sphere_spectrum(spectrum.view(), 5000.)
+                        mbss.spectrum(spectrum.view(), 5000.)
                             .into_iter()
-                            .map(|(position, value)| {
+                            .map(|(direction, value)| {
+                                let position = direction.to_unit_vec();
                                 format!("{}, {}, {}, {value}\n", position.x, position.y, position.z)
                             })
                             .collect::<String>(),
@@ -359,11 +360,15 @@ fn main() -> Result {
                     .with_context(|| format!("writing spectrum to {}", unit_sphere.display()))?;
                 }
                 let sources = mbss.find_sources(spectrum.view(), config.max_sources);
-                for (az, el, _) in sources {
+                for (Direction { azimuth, elevation }, _) in sources {
                     if degrees {
-                        print!("{:9.0}° {:9.0}°\t", az.to_degrees(), el.to_degrees())
+                        print!(
+                            "{:9.0}° {:9.0}°\t",
+                            azimuth.to_degrees(),
+                            elevation.to_degrees()
+                        )
                     } else {
-                        print!("{az:10.7} {el:10.7}\t")
+                        print!("{azimuth:10.7} {elevation:10.7}\t")
                     }
                 }
                 return Ok(());
@@ -378,11 +383,15 @@ fn main() -> Result {
                 )?;
                 loop {
                     let sources = mbss.locate_spec(&recorder.record()?, config.max_sources);
-                    for (az, el, _) in sources {
+                    for (Direction { azimuth, elevation }, _) in sources {
                         if degrees {
-                            print!("{:9.0}° {:9.0}°\t", az.to_degrees(), el.to_degrees())
+                            print!(
+                                "{:9.0}° {:9.0}°\t",
+                                azimuth.to_degrees(),
+                                elevation.to_degrees()
+                            )
                         } else {
-                            print!("{az:10.7} {el:10.7}\t")
+                            print!("{azimuth:10.7} {elevation:10.7}\t")
                         }
                     }
                     println!()
@@ -410,7 +419,7 @@ fn main() -> Result {
                         ..Default::default()
                     };
                     config
-                        .delay_and_sum(azimuth, elevation, &audio)
+                        .delay_and_sum((azimuth, elevation), &audio)
                         .collect_vec()
                 }
             };

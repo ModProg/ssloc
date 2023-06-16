@@ -16,6 +16,7 @@ use std::iter;
 #[cfg(feature = "wav")]
 use std::path::Path;
 
+use derive_more::Constructor;
 use itertools::Itertools;
 use nalgebra::{Complex, UnitQuaternion, Vector3};
 #[cfg(feature = "image")]
@@ -41,6 +42,34 @@ mod sss;
 #[cfg(feature = "wav")]
 pub use hound::SampleFormat as WavFormat;
 pub use sss::DelayAndSum;
+
+#[derive(Debug, Clone, Copy, PartialEq, Default, Constructor)]
+pub struct Direction {
+    pub azimuth: F,
+    pub elevation: F,
+}
+
+impl From<(F, F)> for Direction {
+    fn from((azimuth, elevation): (F, F)) -> Self {
+        Self::new(azimuth, elevation)
+    }
+}
+
+impl Direction {
+    /// Converts angles azimuth and elevation to the respective position on a
+    /// unitsphere around the microphone array.
+    #[must_use]
+    pub fn to_unit_vec(self) -> Position {
+        self.to_quaternion()
+            .transform_vector(&Position::new(1., 0., 0.))
+    }
+
+    /// Converts angles azimuth and elevation to the matching quaternion
+    #[must_use]
+    pub fn to_quaternion(self) -> UnitQuaternion<F> {
+        UnitQuaternion::from_euler_angles(0., -self.elevation, self.azimuth)
+    }
+}
 
 #[must_use]
 pub struct Audio {
@@ -240,17 +269,4 @@ pub fn spec_to_csv(spectrum: ArrayView2<F>) -> String {
         writeln!(out).expect("string writing does not fail");
     }
     out
-}
-
-/// Converts angles azimuth and elevation to the respective position on a
-/// unitsphere around the microphone array.
-#[must_use]
-pub fn angles_to_unit_vec(az: F, el: F) -> Position {
-    angles_to_quaternion(az, el).transform_vector(&Position::new(1., 0., 0.))
-}
-
-/// Converts angles azimuth and elevation to the matching quaternion
-#[must_use]
-pub fn angles_to_quaternion(az: F, el: F) -> UnitQuaternion<F> {
-    UnitQuaternion::from_euler_angles(0., -el, az)
 }

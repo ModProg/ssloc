@@ -5,7 +5,7 @@ use itertools::Itertools;
 use nalgebra::ComplexField;
 use smart_default::SmartDefault;
 
-use crate::{angles_to_unit_vec, Audio, Position, F};
+use crate::{Audio, Direction, Position, F};
 
 /// Uses a Delay-and-Sum Beamformer to extract a single channel.
 #[derive(SmartDefault, Clone, Debug, PartialEq)]
@@ -18,14 +18,20 @@ pub struct DelayAndSum {
 }
 
 impl DelayAndSum {
+    /// Returns the expected audio length produced by delay and sum, if filter is enabled, it
+    /// will remove a few frames at the start and end of the audio.
+    #[must_use]
+    pub fn expected_len(&self, audio: &Audio) -> usize {
+        audio.samples() - self.filter.map(|f| f + f % 2).unwrap_or_default()
+    }
+
     /// Uses a Delay-and-Sum Beamformer to extract a single channel in the direction specified via `az` and `el`.
     pub fn delay_and_sum<'a>(
         &'a self,
-        az: F,
-        el: F,
+        direction: impl Into<Direction>,
         audio: &'a Audio,
     ) -> impl Iterator<Item = F> + 'a {
-        let target = angles_to_unit_vec(az, el);
+        let target = direction.into().to_unit_vec();
 
         let mics = self
             .mics
