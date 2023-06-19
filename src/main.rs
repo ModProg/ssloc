@@ -84,7 +84,6 @@ fn rms<T: Num + ToPrimitive + Copy>(buf: &[T], channel: usize, channels: usize) 
 
 fn read_loop<S: IoFormat + Num + ToPrimitive>(pcm: &PCM, channels: usize) -> Result<(), Error> {
     const SAMPLES: usize = 2usize.pow(13);
-    dbg!(SAMPLES);
     let io = pcm.io_checked()?;
     // Buffer needs space for SAMPLES for every channel
     let mut buf: Vec<S> = vec![S::zero(); SAMPLES * channels];
