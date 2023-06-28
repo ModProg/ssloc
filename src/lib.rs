@@ -13,8 +13,6 @@
 #[cfg(feature = "image")]
 use std::fmt::Write;
 
-#[cfg(feature = "wav")]
-use derive_more::Constructor;
 use nalgebra::{Complex, UnitQuaternion, Vector3};
 #[cfg(feature = "image")]
 use ndarray::ArrayView2;
