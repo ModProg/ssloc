@@ -13,6 +13,7 @@
 #[cfg(feature = "image")]
 use std::fmt::Write;
 
+use derive_more::Constructor;
 use nalgebra::{Complex, UnitQuaternion, Vector3};
 #[cfg(feature = "image")]
 use ndarray::ArrayView2;

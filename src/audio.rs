@@ -4,8 +4,6 @@ use std::path::Path;
 use std::str::FromStr;
 
 #[cfg(feature = "wav")]
-use derive_more::Constructor;
-#[cfg(feature = "wav")]
 pub use hound::SampleFormat as WavFormat;
 use itertools::Itertools;
 use ndarray::{Array2, Axis};
