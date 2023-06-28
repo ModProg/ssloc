@@ -121,17 +121,11 @@ impl Audio {
             }
             hound::SampleFormat::Int => {
                 // https://web.archive.org/web/20230605122301/https://gist.github.com/endolith/e8597a58bcd11a6462f33fa8eb75c43d
-                let normalize: Box<dyn Fn(i32) -> F> = match spec.bits_per_sample {
-                    u @ 0..=8 => Box::new(move |s: i32| {
-                        (s - 2i32.pow(u as u32 - 1)) as F / (2f64.powi(u as i32 - 1) - 1.)
-                    }),
-                    i => Box::new(move |s: i32| s as F / (2f64.powi(i as i32) - 1.)),
-                };
                 let data = reader.into_samples();
                 Self::from_interleaved(
                     spec.sample_rate as F,
                     spec.channels as usize,
-                    data.map_ok(normalize)
+                    data.map_ok(normalize_pcm_wav(spec.bits_per_sample))
                         .collect::<Result<Vec<F>, _>>()
                         .unwrap(),
                 )
@@ -232,6 +226,15 @@ impl Audio {
 
     fn get(&self, mic: usize, sample: usize) -> Option<F> {
         self.data.get((mic, sample)).copied()
+    }
+}
+/// Utility to normalize wav data
+pub fn normalize_pcm_wav(bits_per_sample: u16) -> impl Fn(i32) -> F {
+    match bits_per_sample {
+        u @ 0..=8 => Box::new(move |s: i32| {
+            (s - 2i32.pow(u as u32 - 1)) as F / (2f64.powi(u as i32 - 1) - 1.)
+        }) as Box<dyn Fn(i32) -> F>,
+        i => Box::new(move |s: i32| s as F / (2f64.powi(i as i32) - 1.)),
     }
 }
 
