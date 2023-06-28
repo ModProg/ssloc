@@ -162,14 +162,13 @@ impl<T: Copy + IoFormat + Num + ToPrimitive + Normalize> AudioRecorder<T> {
     pub fn record(&mut self) -> Result<Audio, alsa::Error> {
         _ = self.pcm.prepare();
         let io = self.pcm.io_checked()?;
-        assert_eq!(
-            io.readi(&mut self.buffer)?,
-            self.buffer.len() / self.channels
-        );
+
+        // if recording stopped discard end of buffer
+        let len = io.readi(&mut self.buffer)? * self.channels;
         Ok(Audio::from_interleaved(
             self.rate.into(),
             self.channels,
-            self.buffer.iter().copied().map(Normalize::normalize),
+            self.buffer[..len].iter().copied().map(Normalize::normalize),
         ))
     }
 }

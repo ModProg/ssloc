@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **BREAKING CHANGE** replaced many uses of `(azimuth, elevation)` with new `Direction` struct
+- **BREAKING CHANGE** renamed `DelayAndSum::delay_and_sum()` to `beam_form()`
+- Audio recorder no longer panics if unable to record full length, returns shorter `Audio` instead.
 
 ## [0.3.0] - 2023-06-15
 ### Added

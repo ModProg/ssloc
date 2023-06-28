@@ -417,9 +417,7 @@ fn main() -> Result {
                         mics: config.mics.into_iter().map_into().collect_vec(),
                         ..Default::default()
                     };
-                    config
-                        .delay_and_sum((azimuth, elevation), &audio)
-                        .collect_vec()
+                    config.beam_form((azimuth, elevation), &audio).collect_vec()
                 }
             };
             fs::write(

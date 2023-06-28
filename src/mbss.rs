@@ -232,6 +232,18 @@ pub struct Mbss {
     tau_grid: Vec<Vec<f64>>,
 }
 
+pub(crate) fn wlen(sample_rate: F) -> (usize, Vec<F>) {
+    let wlen = 0.064 * sample_rate as F;
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let wlen = 2usize.pow(wlen.log2().ceil() as u32);
+    (
+        wlen,
+        (1..=(wlen / 2))
+            .map(|v| v as F * sample_rate / wlen as F)
+            .collect_vec(),
+    )
+}
+
 impl Mbss {
     #[must_use]
     pub fn array_centroid(&self) -> Position {
@@ -248,9 +260,7 @@ impl Mbss {
             "Number of microphones and number of signal channels must be the same.",
         );
 
-        let wlen = 0.064 * audio.sample_rate as F;
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        let wlen = 2usize.pow(wlen.log2().ceil() as u32);
+        let (wlen, f) = wlen(audio.sample_rate());
 
         let x_ft;
         let x_ft = if self.spectrum_method.is_gcc() {
@@ -279,9 +289,6 @@ impl Mbss {
         //     &self.elevation_grid,
         //     self.alpha_res,
         // );
-        let f = (1..=(wlen / 2))
-            .map(|v| v as F * audio.sample_rate / wlen as F)
-            .collect_vec();
 
         let spec_inst = match self.spectrum_method {
             AngularSpectrumMethod::GccPhat => self.gcc_phat_multi(x_ft.view(), &f),
@@ -498,7 +505,8 @@ impl Mbss {
     }
 }
 
-fn stft_multi(x: ArrayView2<F>, wlen: usize) -> Array3<C> {
+/// Returns bins x frames x channels
+pub(crate) fn stft_multi(x: ArrayView2<F>, wlen: usize) -> Array3<C> {
     assert!(x.nrows() < x.ncols(), "the signals must be within rows.");
     assert!(wlen % 4 == 0, "the window length must be a multiple of 4.");
     // Truncate input signal to multitude of window length

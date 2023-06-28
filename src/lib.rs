@@ -17,31 +17,30 @@ use std::iter;
 use std::path::Path;
 
 use derive_more::Constructor;
+#[cfg(feature = "wav")]
+pub use hound::SampleFormat as WavFormat;
 use itertools::Itertools;
 use nalgebra::{Complex, UnitQuaternion, Vector3};
 #[cfg(feature = "image")]
 use ndarray::ArrayView2;
 use ndarray::{Array2, Axis};
 use num::FromPrimitive;
+use realfft::num_traits::ToPrimitive;
 
 #[cfg(feature = "realtime")]
 mod realtime;
 #[cfg(feature = "realtime")]
 pub use realtime::*;
+pub mod mbss;
+pub use mbss::{Mbss, MbssConfig};
+mod sss;
+pub use sss::DelayAndSum;
 mod utils;
 
 pub type F = f64;
 pub type I = i64;
 pub type C = Complex<F>;
 pub type Position = Vector3<F>;
-
-pub use mbss::{Mbss, MbssConfig};
-use realfft::num_traits::ToPrimitive;
-pub mod mbss;
-mod sss;
-#[cfg(feature = "wav")]
-pub use hound::SampleFormat as WavFormat;
-pub use sss::DelayAndSum;
 
 #[derive(Debug, Clone, Copy, PartialEq, Default, Constructor)]
 pub struct Direction {
