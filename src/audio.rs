@@ -1,5 +1,7 @@
+use std::error::Error;
 use std::iter;
 use std::path::Path;
+use std::str::FromStr;
 
 #[cfg(feature = "wav")]
 pub use hound::SampleFormat as WavFormat;
@@ -136,13 +138,7 @@ impl Audio {
     }
 
     /// Produces wave data without header
-    pub fn from_pcm_bytes(
-        &self,
-        format: PcmFormat,
-        sample_rate: F,
-        channels: usize,
-        data: &[u8],
-    ) -> Self {
+    pub fn from_pcm_bytes(format: PcmFormat, sample_rate: F, channels: usize, data: &[u8]) -> Self {
         Self::from_interleaved(sample_rate, channels, format.from_data(data))
     }
 
@@ -199,6 +195,32 @@ pub enum PcmFormat {
         bytes: u8,
         lower_endian: bool,
     },
+}
+
+impl FromStr for PcmFormat {
+    type Err = Box<dyn Error>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let format = s.get(0..1).ok_or("format name empty")?.to_ascii_uppercase();
+        let bytes = s[1..(s[1..]
+            .chars()
+            .position(|c| !c.is_ascii_digit())
+            .unwrap_or(s.len() - 1))]
+            .parse::<u8>()?
+            / 8;
+        let lower_endian = s.ends_with("LE");
+        Ok(match format.as_str() {
+            "F" => Self::Float {
+                bytes,
+                lower_endian,
+            },
+            i => Self::Int {
+                signed: i == "S",
+                bytes,
+                lower_endian,
+            },
+        })
+    }
 }
 
 impl PcmFormat {
