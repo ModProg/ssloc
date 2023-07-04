@@ -118,6 +118,12 @@ impl Audio {
             .map(IntoIterator::into_iter)
             .collect_vec();
         let mut channel = channels.len() - 1;
+        if channels.is_empty() {
+            return Self {
+                sample_rate,
+                data: Default::default(),
+            };
+        }
         Self::from_interleaved(
             sample_rate,
             channels.len(),

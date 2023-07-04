@@ -5,7 +5,7 @@
     clippy::cast_precision_loss
 )]
 // TODO https://github.com/rust-ndarray/ndarray/pull/1279
-#![allow(clippy::reversed_empty_ranges)]
+#![allow(clippy::reversed_empty_ranges, clippy::default_trait_access)]
 //! Sound source localization crate.
 //!
 //! Currently very much unstable and undocumented, but that should be fixed in
