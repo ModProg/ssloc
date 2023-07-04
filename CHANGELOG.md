@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Direction` a struct holding a direction in azimuth and elevation
 - `DelayAndSum::expected_len()`
 - `Audio::from_pcm_data()`
+- `ApproxEq` implementation for Audio
 
 ### Changed
 - **BREAKING CHANGE** replaced many uses of `(azimuth, elevation)` with new `Direction` struct

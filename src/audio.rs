@@ -1,23 +1,44 @@
 use std::error::Error;
 use std::iter;
+#[cfg(feature = "wav")]
 use std::path::Path;
 use std::str::FromStr;
 
+use float_cmp::{ApproxEq, F64Margin};
 #[cfg(feature = "wav")]
 pub use hound::SampleFormat as WavFormat;
 use itertools::Itertools;
 use ndarray::{Array2, Axis};
-use num::{FromPrimitive, ToPrimitive};
+use num::FromPrimitive;
 
 use crate::F;
 
 #[must_use]
+#[derive(Debug, PartialEq)]
 pub struct Audio {
     pub(crate) sample_rate: F,
     pub(crate) data: Array2<F>,
 }
 
+impl ApproxEq for &Audio {
+    type Margin = F64Margin;
+
+    fn approx_eq<M: Into<Self::Margin>>(self, other: Self, margin: M) -> bool {
+        let margin = margin.into();
+        self.sample_rate.approx_eq(other.sample_rate, margin)
+            && self.data.len() == other.data.len()
+            && self
+                .data
+                .iter()
+                .zip(other.data.iter())
+                .all(|(this, other)| this.approx_eq(*other, margin))
+    }
+}
+
 impl Audio {
+    const SAMPLES: Axis = Axis(1);
+
+    // const CHANNELS: Axis = Axis(0);
     #[must_use]
     pub fn channels(&self) -> usize {
         self.data.dim().0
@@ -83,7 +104,7 @@ impl Audio {
         Self {
             sample_rate,
             data: Array2::from_shape_fn((channels, data.len() / channels), |(c, s)| {
-                data[c + s * channels].to_f64().unwrap()
+                data[c + s * channels]
             }),
         }
     }
@@ -109,7 +130,8 @@ impl Audio {
 
     pub fn to_interleaved<T: FromPrimitive>(&self) -> impl Iterator<Item = T> + '_ {
         self.data
-            .iter()
+            .axis_iter(Self::SAMPLES)
+            .flatten()
             .map(|&d| T::from_f64(d).expect("audio format can be converted"))
     }
 
@@ -202,7 +224,7 @@ impl FromStr for PcmFormat {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let format = s.get(0..1).ok_or("format name empty")?.to_ascii_uppercase();
-        let bytes = s[1..(s[1..]
+        let bytes = s[1..=(s[1..]
             .chars()
             .position(|c| !c.is_ascii_digit())
             .unwrap_or(s.len() - 1))]
@@ -278,15 +300,19 @@ impl PcmFormat {
                         (false, true) => u32::from_le_bytes(
                             [0, 1, 2, 3].map(|i| data.get(i).copied().unwrap_or_default()),
                         ) as F,
-                        (false, false) => u32::from_le_bytes(
-                            [3, 2, 1, 0].map(|i| if 4 - i > bytes { 0 } else { data[i as usize] }),
-                        ) as F,
+                        (false, false) => u32::from_le_bytes([0, 1, 2, 3].map(|i| {
+                            if i >= bytes {
+                                0
+                            } else {
+                                data[(bytes - i - 1) as usize]
+                            }
+                        })) as F,
                     };
-                    let bytes = bytes as i32;
+                    let bits = bytes as i32 * 8;
                     if signed {
-                        value / (2f64.powi(bytes) - 1.)
+                        value / (2f64.powi(bits) - 1.)
                     } else {
-                        (value - 2f64.powi(bytes - 1)) / (2f64.powi(bytes - 1) - 1.)
+                        (value - 2f64.powi(bits - 1)) / (2f64.powi(bits - 1) - 1.)
                     }
                 }
             })

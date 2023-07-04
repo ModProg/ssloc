@@ -17,7 +17,7 @@ name = "ssloc"
 required-features = ["bin"]
 
 [features]
-default = ["bin"]
+# default = ["bin"]
 # default = ["wav", "realtime", "image"]
 wav = ["dep:hound"]
 realtime = ["alsa"]
@@ -54,8 +54,6 @@ smart-default = "0.7"
 unidirs = { version = "0.1.1", optional = true }
 hound = { version = "3.5", optional = true }
 forr = "0.1.1"
-
-[dev-dependencies]
 float-cmp = "0.9"
 
 [package.metadata.docs.rs]
