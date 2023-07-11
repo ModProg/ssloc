@@ -15,6 +15,7 @@ use crate::F;
 
 #[must_use]
 #[derive(Debug, PartialEq)]
+/// Audio data.
 pub struct Audio {
     pub(crate) sample_rate: F,
     pub(crate) data: Array2<F>,
@@ -39,11 +40,13 @@ impl Audio {
     const SAMPLES: Axis = Axis(1);
 
     // const CHANNELS: Axis = Axis(0);
+    /// Number of channels in audio Data.
     #[must_use]
     pub fn channels(&self) -> usize {
         self.data.dim().0
     }
 
+    /// Only retain specified channels in `self`.
     pub fn retain_channels(&mut self, mut filter: impl FnMut(usize) -> bool) {
         for channel in (0..self.channels()).rev() {
             if !filter(channel) {
@@ -52,22 +55,26 @@ impl Audio {
         }
     }
 
+    /// Number of samples.
     #[must_use]
     pub fn samples(&self) -> usize {
         self.data.dim().1
     }
 
+    /// Sample rate.
     #[must_use]
     pub fn sample_rate(&self) -> F {
         self.sample_rate
     }
 
+    /// Create `Self` from `.wav` file.
     #[cfg(feature = "wav")]
     pub fn from_file(arg: impl AsRef<Path>) -> Self {
         use std::fs::File;
         Self::from_wav(File::open(arg).unwrap())
     }
 
+    /// Create `Self` from `wave` data.
     #[cfg(feature = "wav")]
     pub fn from_wav<R: std::io::Read>(data: R) -> Self {
         let reader = hound::WavReader::new(data).unwrap();
@@ -95,6 +102,7 @@ impl Audio {
         }
     }
 
+    /// Create Self from interleaved sample.
     pub fn from_interleaved(
         sample_rate: F,
         channels: usize,
@@ -109,6 +117,7 @@ impl Audio {
         }
     }
 
+    /// Create Self from individual channels of audio data.
     pub fn from_channels(
         sample_rate: F,
         channels: impl IntoIterator<Item = impl IntoIterator<Item = impl Into<F>>>,
@@ -134,6 +143,7 @@ impl Audio {
         )
     }
 
+    /// Return samples in interleaved form.
     pub fn to_interleaved<T: FromPrimitive>(&self) -> impl Iterator<Item = T> + '_ {
         self.data
             .axis_iter(Self::SAMPLES)
@@ -170,6 +180,7 @@ impl Audio {
         Self::from_interleaved(sample_rate, channels, format.from_data(data))
     }
 
+    /// Return `self` as `wave` data.
     #[cfg(feature = "wav")]
     #[must_use]
     pub fn wav(&self, sample_format: WavFormat, bits_per_sample: u16) -> Vec<u8> {
@@ -213,6 +224,8 @@ pub fn normalize_pcm_wav(bits_per_sample: u16) -> impl Fn(i32) -> F {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Format of PCM audio data.
+#[allow(missing_docs)]
 pub enum PcmFormat {
     Float {
         bytes: u8,
@@ -276,6 +289,7 @@ impl PcmFormat {
         !matches!(self, Self::Int { signed: false, .. })
     }
 
+    /// Convert data in bytes to iterator of normalized audio data, matching PCM format.
     pub fn from_data(self, data: &[u8]) -> impl Iterator<Item = F> + '_ {
         data.chunks_exact(self.bytes().into())
             .map(move |data| match self {

@@ -9,9 +9,11 @@ use crate::{Audio, Direction, Position, F};
 
 /// Uses a Delay-and-Sum Beamformer to extract a single channel.
 #[derive(SmartDefault, Clone, Debug, PartialEq)]
+#[allow(missing_docs)]
 pub struct DelayAndSum {
     #[default = 343.0]
     pub speed_of_sound: F,
+    /// Number of samples used for interpolating between samples audio data.
     #[default(Some(11))]
     pub filter: Option<usize>,
     pub mics: Vec<Position>,

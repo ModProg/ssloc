@@ -12,6 +12,7 @@ use crate::{Audio, F};
 
 #[derive(Clone, Copy, Display, Deserialize, Serialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
+#[allow(missing_docs)]
 pub enum Format {
     S8,
     U8,
@@ -89,6 +90,7 @@ impl Format {
     }
 }
 
+/// Alsa audio recorder.
 pub struct AudioRecorder<T> {
     pcm: PCM,
     channels: usize,
@@ -97,7 +99,9 @@ pub struct AudioRecorder<T> {
     // audio: Audio,
 }
 
+/// Trait for normalizing recorded samples.
 pub trait Normalize {
+    /// Normalizes sample to [`F`] between `0` and `1`.
     fn normalize(self) -> F;
 }
 
@@ -128,6 +132,7 @@ forr! { $signed:ty, $unsigned:ty in [i8, u8, i16, u16, i32, u32] $*
 
 impl<T: Copy + IoFormat + Num + ToPrimitive + Normalize> AudioRecorder<T> {
     #[allow(clippy::missing_errors_doc)]
+    /// Creates [`AudioRecorder`].
     pub fn new(
         name: impl AsRef<str>,
         channels: usize,
@@ -159,6 +164,7 @@ impl<T: Copy + IoFormat + Num + ToPrimitive + Normalize> AudioRecorder<T> {
 
     // TODO borrow and reuse audio
     #[allow(clippy::missing_errors_doc)]
+    #[allow(missing_docs)]
     pub fn record(&mut self) -> Result<Audio, alsa::Error> {
         _ = self.pcm.prepare();
         let io = self.pcm.io_checked()?;
@@ -174,38 +180,46 @@ impl<T: Copy + IoFormat + Num + ToPrimitive + Normalize> AudioRecorder<T> {
 }
 
 #[macro_export]
+/// Allows implementing code for any format supported by [`AudioRecorder`].
+///
+/// The type alias `FORMAT` contains the format as a type e.g. `i8` for `Format::S8`.
+///
+/// ```
+/// let format = ssloc::Format::S8;
+/// ssloc::for_format!(format, assert_eq!(FORMAT::default(), 0 as FORMAT));
+/// ```
 macro_rules! for_format {
     ($format:expr, $expr:expr) => {
         match $format {
-            Format::S8 => {
+            $crate::Format::S8 => {
                 type FORMAT = i8;
                 $expr
             }
-            Format::U8 => {
+            $crate::Format::U8 => {
                 type FORMAT = u8;
                 $expr
             }
-            Format::S16 => {
+            $crate::Format::S16 => {
                 type FORMAT = i16;
                 $expr
             }
-            Format::U16 => {
+            $crate::Format::U16 => {
                 type FORMAT = u16;
                 $expr
             }
-            Format::S32 => {
+            $crate::Format::S32 => {
                 type FORMAT = i32;
                 $expr
             }
-            Format::U32 => {
+            $crate::Format::U32 => {
                 type FORMAT = u32;
                 $expr
             }
-            Format::F32 => {
+            $crate::Format::F32 => {
                 type FORMAT = f32;
                 $expr
             }
-            Format::F64 => {
+            $crate::Format::F64 => {
                 type FORMAT = f64;
                 $expr
             }

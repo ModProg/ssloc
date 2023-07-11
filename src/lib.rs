@@ -4,18 +4,17 @@
     clippy::cast_lossless,
     clippy::cast_precision_loss
 )]
+#![warn(missing_docs)]
 // TODO https://github.com/rust-ndarray/ndarray/pull/1279
 #![allow(clippy::reversed_empty_ranges, clippy::default_trait_access)]
 //! Sound source localization crate.
 //!
 //! Currently very much unstable and undocumented, but that should be fixed in
 //! the comming weeks.
-#[cfg(feature = "image")]
 use std::fmt::Write;
 
 use derive_more::Constructor;
 use nalgebra::{Complex, UnitQuaternion, Vector3};
-#[cfg(feature = "image")]
 use ndarray::ArrayView2;
 
 #[cfg(feature = "realtime")]
@@ -31,12 +30,18 @@ mod utils;
 mod audio;
 pub use audio::*;
 
+#[allow(missing_docs)]
 pub type F = f64;
+#[allow(missing_docs)]
 pub type I = i64;
+#[allow(missing_docs)]
 pub type C = Complex<F>;
+#[allow(missing_docs)]
 pub type Position = Vector3<F>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Default, Constructor)]
+/// Direction in azimuth and elevation.
+#[allow(missing_docs)]
 pub struct Direction {
     pub azimuth: F,
     pub elevation: F,
@@ -66,31 +71,32 @@ impl Direction {
 
 #[cfg(feature = "image")]
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-pub fn spec_to_image(spectrum: ArrayView2<F>) -> image::GrayImage {
+/// Converts intensity matrix into gray scale image.
+pub fn intensities_to_image(intensities: ArrayView2<F>) -> image::GrayImage {
     use image::{GrayImage, Luma};
-    let normalize = spectrum
+    let normalize = intensities
         .iter()
         .copied()
         .max_by(F::total_cmp)
         .expect("spectrum is not empty")
         / u8::MAX as F;
-    let mut img = GrayImage::new(spectrum.ncols() as u32, spectrum.nrows() as u32);
-    for ((y, x), value) in spectrum.indexed_iter() {
+    let mut img = GrayImage::new(intensities.ncols() as u32, intensities.nrows() as u32);
+    for ((y, x), value) in intensities.indexed_iter() {
         img.put_pixel(
             x as u32,
-            (spectrum.nrows() - 1 - y) as u32,
+            (intensities.nrows() - 1 - y) as u32,
             Luma([(value / normalize) as u8]),
         );
     }
     img
 }
 
-#[cfg(feature = "image")]
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 #[must_use]
-pub fn spec_to_csv(spectrum: ArrayView2<F>) -> String {
+/// Returns intensity matrix as CSV data.
+pub fn intensity_to_csv(intensities: ArrayView2<F>) -> String {
     let mut out = String::new();
-    for row in spectrum.rows() {
+    for row in intensities.rows() {
         for col in row.iter() {
             write!(out, "{col},").expect("string writing does not fail");
         }

@@ -324,13 +324,13 @@ fn main() -> Result {
                 format!("{:>10} {:>10}\t", "azimuth", "elevation").repeat(config.max_sources)
             );
             if let Some(file) = file {
-                let spectrum = mbss.analyze_spectrum(&Audio::from_file(file));
+                let spectrum = mbss.analyze(&Audio::from_file(file));
                 #[cfg(feature = "image")]
                 if let Some(mut image) = image {
                     if image.is_dir() {
                         image = image.join("spec.png");
                     }
-                    ssloc::spec_to_image(spectrum.view())
+                    ssloc::intensities_to_image(spectrum.view())
                         .save_with_format(&image, image::ImageFormat::Png)
                         .with_context(|| format!("writing spectrum to {}", image.display()))?;
                 }
@@ -338,7 +338,7 @@ fn main() -> Result {
                     if csv.is_dir() {
                         csv = csv.join("spec.csv");
                     }
-                    fs::write(&csv, ssloc::spec_to_csv(spectrum.view()))
+                    fs::write(&csv, ssloc::intensity_to_csv(spectrum.view()))
                         .with_context(|| format!("writing spectrum to {}", csv.display()))?;
                 }
                 if let Some(mut unit_sphere) = unit_sphere {
@@ -348,7 +348,7 @@ fn main() -> Result {
                     fs::write(
                         &unit_sphere,
                         // TODO figure out if this is a reasonable value
-                        mbss.spectrum(spectrum.view(), 5000.)
+                        mbss.directional_intensities(spectrum.view(), 5000.)
                             .into_iter()
                             .map(|(direction, value)| {
                                 let position = direction.to_unit_vec();

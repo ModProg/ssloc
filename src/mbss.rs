@@ -1,3 +1,4 @@
+//! Holds structs and functions for sound source localization using `MBSS`.
 #![allow(clippy::module_name_repetitions)]
 use std::f64::consts::PI;
 use std::fmt::{Debug, Display};
@@ -19,34 +20,39 @@ use crate::{Audio, Direction, Position};
 type F = f64;
 type C = Complex<F>;
 
-pub struct Output {
-    pub sources: Vec<(F, F)>,
-    pub powers: Vec<(F, F, F)>,
-}
-
+// pub struct Output {
+//     pub sources: Vec<(F, F)>,
+//     pub powers: Vec<(F, F, F)>,
+// }
+//
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+/// Currently only `GCC-PHAT` is supported, can be extended to other localization algorithms.
 pub enum AngularSpectrumMethod {
+    /// GCC-PHAT
     #[default]
     GccPhat,
-    GccNonlin,
-    Mvdr,
-    Mvdrw,
-    Ds,
-    Dsw,
-    Dnm,
-    Music,
+    // GccNonlin,
+    // Mvdr,
+    // Mvdrw,
+    // Ds,
+    // Dsw,
+    // Dnm,
+    // Music,
 }
 
 impl AngularSpectrumMethod {
     #[must_use]
     fn is_gcc(self) -> bool {
-        matches!(self, Self::GccPhat | Self::GccNonlin)
+        matches!(self, Self::GccPhat /* | Self::GccNonlin */)
     }
 }
 
 #[derive(Clone, Copy, Default, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+/// Method used for combining frequency bin results.
+#[allow(missing_docs)]
 pub enum Pooling {
     #[default]
     Max,
@@ -73,8 +79,10 @@ impl FromStr for Pooling {
     }
 }
 
+/// Configuration for creating [`Mbss`].
 #[derive(SmartDefault, Clone, Debug, Copy, Deserialize, Serialize, PartialEq)]
 #[serde(default)]
+#[allow(missing_docs)]
 pub struct MbssConfig {
     pub pooling: Pooling,
     #[default = 343.0]
@@ -104,12 +112,16 @@ pub struct MbssConfig {
 pub fn angular_distance(a: impl Into<Direction>, b: impl Into<Direction>) -> F {
     let a = a.into();
     let b = b.into();
-    (a.elevation.sin() * b.elevation.sin()
-        + a.elevation.cos() * b.elevation.cos() * (b.elevation - a.elevation).cos())
+    (a.azimuth.sin() * b.azimuth.sin()
+        + a.azimuth.cos() * b.azimuth.cos() * (b.elevation - a.elevation).cos())
     .acos()
 }
 
 impl MbssConfig {
+    /// Creates [`Mbss`] from `Self` with the microphone positions.
+    ///
+    /// Output should be preserved if possible and localisation using the same configuration is
+    /// repeated.
     pub fn create(self, mics: impl IntoIterator<Item = impl Into<Position>>) -> Mbss {
         let MbssConfig {
             pooling,
@@ -211,6 +223,8 @@ impl MbssConfig {
     }
 }
 
+/// Holds intermediate calculations that can be preserved when locating sound sources
+/// using the same array geometry multiple times.
 pub struct Mbss {
     mics: Vec<Position>,
     pooling: Pooling,
@@ -245,6 +259,7 @@ pub(crate) fn wlen(sample_rate: F) -> (usize, Vec<F>) {
 }
 
 impl Mbss {
+    /// Returns the center of the microphone array.
     #[must_use]
     pub fn array_centroid(&self) -> Position {
         self.mics
@@ -252,8 +267,10 @@ impl Mbss {
             .fold(Vector3::zeros(), |a, v| a + v / self.mics.len() as F)
     }
 
+    /// Analyzes input audio and produces [azimuth x elevation] matrix of intensities for each
+    /// sound source location.
     #[must_use]
-    pub fn analyze_spectrum(&self, audio: &Audio) -> Array2<F> {
+    pub fn analyze(&self, audio: &Audio) -> Array2<F> {
         assert_eq!(
             self.mics.len(),
             audio.channels(),
@@ -292,7 +309,7 @@ impl Mbss {
 
         let spec_inst = match self.spectrum_method {
             AngularSpectrumMethod::GccPhat => self.gcc_phat_multi(x_ft.view(), &f),
-            other => todo!("{other:?}"),
+            // other => todo!("{other:?}"),
         };
         // %% Normalize instantaneous local angular spectra if requested
         if self.normalize_spectra {
@@ -325,12 +342,18 @@ impl Mbss {
             .unwrap()
     }
 
+    /// Takes `intensities` returned by [`Self::analyze`] and returns, for those
+    /// satisfying the threshold, the [`Direction`] along with the intensity.
     #[must_use]
-    pub fn spectrum(&self, spec: ArrayView2<F>, threshold: F) -> Vec<(Direction, F)> {
+    pub fn directional_intensities(
+        &self,
+        intensities: ArrayView2<F>,
+        threshold: F,
+    ) -> Vec<(Direction, F)> {
         let mut out = Vec::new();
-        assert_eq!(spec.nrows(), self.elevation.len());
-        assert_eq!(spec.ncols(), self.azimuth.len());
-        for (row, &el) in spec.rows().into_iter().zip(self.elevation.iter()) {
+        assert_eq!(intensities.nrows(), self.elevation.len());
+        assert_eq!(intensities.ncols(), self.azimuth.len());
+        for (row, &el) in intensities.rows().into_iter().zip(self.elevation.iter()) {
             for (&value, &az) in row.into_iter().zip(self.azimuth.iter()) {
                 if value > threshold {
                     out.push((Direction::new(az, el), value));
@@ -340,14 +363,18 @@ impl Mbss {
         out
     }
 
+    /// Findes sound sources in `intensities` returned by [`Self::analyze`],
+    /// i.e., [`Direction`s](Direction) that are local maxima and at least
+    /// [`MbssConfig::min_angle`] apart.
     #[must_use]
-    pub fn find_sources(&self, spec: ArrayView2<F>, nsrc: usize) -> Vec<(Direction, f64)> {
-        self.find_peaks(nsrc, spec)
+    pub fn find_sources(&self, intensities: ArrayView2<F>, nsrc: usize) -> Vec<(Direction, f64)> {
+        self.find_peaks(nsrc, intensities)
     }
 
+    /// Shorthand for `mbss.find_sources(mbss.analyze(audio).view(), ...)`.
     #[must_use]
     pub fn locate_spec(&self, audio: &Audio, nsrc: usize) -> Vec<(Direction, F)> {
-        self.find_sources(self.analyze_spectrum(audio).view(), nsrc)
+        self.find_sources(self.analyze(audio).view(), nsrc)
     }
 
     fn n_elevations(&self) -> usize {
